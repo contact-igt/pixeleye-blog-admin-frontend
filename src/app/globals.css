@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+:root {
+  --brand-primary: #0284c7;
+  --brand-primary-hover: #0369a1;
+  --brand-primary-light: #f0f9ff;
+  --brand-navy: #0f172a;
+  --brand-navy-surface: #172033;
+  --brand-soft-blue: #f8fafc;
+  --brand-page: #f5f8fb;
+  --brand-card: #ffffff;
+  --brand-border: #dbe3ec;
+  --brand-border-subtle: #edf2f7;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --success: #059669;
+  --success-bg: #ecfdf5;
+  --success-border: #a7f3d0;
+  --warning: #d97706;
+  --warning-bg: #fffbeb;
+  --warning-border: #fde68a;
+  --danger: #e11d48;
+  --danger-bg: #fff1f2;
+  --danger-border: #fecdd3;
+  --info: #0284c7;
+  --info-bg: #f0f9ff;
+  --info-border: #bae6fd;
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; scroll-behavior: smooth; }
+body { min-height: 100%; margin: 0; background: var(--brand-page); color: var(--text-primary); font-family: var(--font-admin), "Nunito Sans", "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading), "Poppins", "Segoe UI", Arial, sans-serif; font-weight: 600; }
+.blog-content, .ProseMirror { font-family: var(--font-body), "Inter", "Segoe UI", Arial, sans-serif; font-weight: 400; line-height: 1.65; }
+.crm-panel, .crm-panel table, .crm-panel input, .crm-panel button, .crm-panel textarea, .crm-panel select { font-family: var(--font-admin), "Nunito Sans", "Segoe UI", Arial, sans-serif; }
+button, input, textarea, select { font: inherit; }
+button:not(:disabled) { cursor: pointer; }
+img { max-width: 100%; }
+
+.focus-ring:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border-radius: 999px; background: #cbd5e1; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+.gradient-bg-sky { background: var(--brand-page); }
+.gradient-sidebar { background: var(--brand-navy); }
+.glass-panel { border: 1px solid var(--brand-border); background: rgba(255,255,255,.96); }
+
+.crm-card { position: relative; overflow: hidden; }
+.crm-card-interactive { transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.crm-card-interactive:hover { transform: translateY(-1px); border-color: #bae6fd; box-shadow: 0 8px 22px rgba(15,23,42,.07); }
+.crm-card-interactive:focus-within { border-color: #7dd3fc; box-shadow: 0 0 0 3px rgba(14,165,233,.1); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
