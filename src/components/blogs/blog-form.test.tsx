@@ -1,4 +1,4 @@
-﻿import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlogForm } from './blog-form';
@@ -36,6 +36,7 @@ describe('BlogForm', () => {
     render(<BlogForm />);
 
     const templateOne = await screen.findByRole('radio', { name: /Classic Single-Column Article/ });
+    expect(screen.getByRole('complementary', { name: 'Blog settings' }).firstElementChild).toHaveClass('xl:sticky', 'xl:top-36', 'xl:max-h-[calc(100dvh-9.5rem)]', 'xl:overflow-y-auto');
     expect(templateOne).toHaveAttribute('aria-checked', 'true');
     await user.click(screen.getByRole('radio', { name: /Article with Sidebar/ }));
 

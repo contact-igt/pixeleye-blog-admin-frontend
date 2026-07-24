@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -38,6 +38,10 @@ function canPublish(role?: string) {
 }
 
 function initialContent(value: unknown): TipTapDocument {
+  // Backend may return content_json as a raw JSON string — parse it first
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch { /* ignore, fall through */ }
+  }
   if (value && typeof value === 'object' && (value as { type?: string }).type === 'doc') return value as TipTapDocument;
   const text = String((value as { text?: string } | null)?.text ?? '').trim();
   return text
@@ -379,7 +383,8 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
 
           <SectionCard title="Write your article" className="border border-slate-100 bg-white/80 backdrop-blur-md">
             <RichTextEditor
-              value={initial.content}
+              key={blog?.id ?? 'new'}
+              value={form.content}
               onChange={(json, nextHtml) => {
                 change('content', json);
                 setHtml(nextHtml);
@@ -392,7 +397,8 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
         </main>
 
         {/* Right Sidebar: Featured Image, SEO, Checklist, Metadata */}
-        <aside className="flex min-w-0 flex-col gap-5">
+        <aside aria-label="Blog settings" className="min-w-0 xl:self-start xl:sticky xl:top-36">
+          <div className="flex min-w-0 flex-col gap-5">
           <SectionCard title="Article template" className="order-2 border border-slate-100 bg-white/80 backdrop-blur-md">
             <p className="mb-3 text-xs leading-5 text-slate-500">Choose one controlled layout. Both templates use the same Blog fields; only the article layout changes.</p>
             <TemplateSelector value={form.templateKey} onChange={(templateKey) => change('templateKey', templateKey)} disabled={busy} />
@@ -404,7 +410,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
                 </span>
               </div>
               <ul className="mt-2 space-y-1.5 text-[11px] leading-4 text-slate-600">
-                {templateInstructions.map((instruction) => <li key={instruction} className="flex gap-2"><span aria-hidden="true" className="text-sky-600">•</span><span>{instruction}</span></li>)}
+                {templateInstructions.map((instruction) => <li key={instruction} className="flex gap-2"><span aria-hidden="true" className="text-sky-600">-</span><span>{instruction}</span></li>)}
               </ul>
               <p className="mt-2 border-t border-sky-100 pt-2 text-[11px] font-semibold text-slate-600">Save Draft needs a title of at least 3 characters. Publishing also requires excerpt, article content, and an active featured image with alt text.</p>
             </div>
@@ -499,6 +505,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
               </div>
             </div>
           </SectionCard>
+          </div>
         </aside>
       </div>
 

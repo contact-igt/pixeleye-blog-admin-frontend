@@ -53,7 +53,7 @@ export function AdminShell({ children }: Readonly<{ children: React.ReactNode }>
   }
 
   return (
-    <div className="crm-panel min-h-screen bg-slate-50 lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
+    <div className="crm-panel h-screen overflow-hidden bg-slate-50 lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
       <a href="#main-content" className="focus-ring fixed left-3 top-3 z-[70] -translate-y-20 rounded-lg bg-slate-950 px-3 py-2 text-sm font-semibold text-white focus:translate-y-0">Skip to content</a>
 
       {mobileOpen && <button type="button" className="fixed inset-0 z-30 bg-slate-950/45 lg:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
@@ -82,8 +82,8 @@ export function AdminShell({ children }: Readonly<{ children: React.ReactNode }>
         </div>
       </aside>
 
-      <div className="min-w-0">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
+      <div className="h-screen min-w-0 overflow-y-auto overflow-x-hidden">
+        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button type="button" className="focus-ring grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu" aria-controls="admin-navigation" aria-expanded={mobileOpen}><Menu size={18} aria-hidden="true" /></button>
             <div className="flex min-w-0 items-center gap-2 text-sm"><span className="hidden text-slate-500 sm:inline">Pixel Eye Admin</span><ChevronRight size={14} className="hidden text-slate-300 sm:block" aria-hidden="true" /><span className="truncate font-semibold text-slate-900">{activeNavItem?.label ?? 'Admin'}</span></div>
@@ -98,8 +98,9 @@ export function AdminShell({ children }: Readonly<{ children: React.ReactNode }>
             {userMenuOpen && <div role="menu" className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-xl"><div className="border-b border-slate-100 px-2 py-2"><p className="truncate text-sm font-bold text-slate-900">{admin?.name ?? 'Administrator'}</p><p className="truncate text-xs text-slate-500">{admin?.email ?? ''}</p></div><button type="button" role="menuitem" onClick={() => void handleLogout()} disabled={loggingOut} className="focus-ring mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"><LogOut size={15} aria-hidden="true" />{loggingOut ? 'Signing out...' : 'Sign out'}</button></div>}
           </div>
         </header>
-        <main id="main-content" className="mx-auto w-full max-w-[1440px] p-4 sm:p-6 lg:p-8">{children}</main>
+        <main id="main-content" className="mx-auto w-full max-w-[1440px] min-w-0 overflow-x-clip p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );
 }
+

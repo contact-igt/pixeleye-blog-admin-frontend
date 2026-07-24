@@ -15,7 +15,14 @@ function fieldError(errors: Record<string, string>, path: string) {
 }
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
-  return <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-sky-600" />{label}</label>;
+  const isDisableAction = label === 'Disable';
+  return <label className={`inline-flex items-center gap-2 text-xs font-bold ${isDisableAction ? 'text-rose-600' : 'text-slate-600'}`}><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-sky-600" />{label}</label>;
+}
+
+function parseReadingTimeMinutes(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return null;
+  return Math.min(Number(digits), 240);
 }
 
 function Section({ title, enabled = true, required = false, complete, onEnabledChange, children }: {
@@ -29,7 +36,7 @@ function Section({ title, enabled = true, required = false, complete, onEnabledC
   return <details open className="rounded-2xl border border-slate-200 bg-white p-4">
     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
       <span className="flex items-center gap-2 text-sm font-bold text-slate-900">{complete ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Circle size={16} className="text-slate-300" />}{title}</span>
-      {required ? <span className="text-[10px] font-bold uppercase tracking-wide text-sky-700">Required</span> : onEnabledChange ? <Toggle checked={enabled} onChange={onEnabledChange} label={enabled ? 'Enabled' : 'Disabled'} /> : null}
+      {required ? <span className="text-[10px] font-bold uppercase tracking-wide text-sky-700">Required</span> : onEnabledChange ? <Toggle checked={enabled} onChange={onEnabledChange} label={enabled ? 'Disable' : 'Enable'} /> : null}
     </summary>
     {(required || enabled) && <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">{children}</div>}
   </details>;
@@ -51,7 +58,7 @@ export function BlogBlockEditor({ value, onChange, errors = {}, onMediaResolved 
       <Input label="Category" value={blocks.hero.category} maxLength={100} onChange={(event) => setBlock('hero', { ...blocks.hero, category: event.target.value })} error={fieldError(errors, 'hero.category')} />
       <RepeaterEditor items={blocks.hero.breadcrumb} max={5} createItem={() => ''} addLabel="Add breadcrumb" onChange={(breadcrumb) => setBlock('hero', { ...blocks.hero, breadcrumb })} renderItem={(item, index) => <Input aria-label={`Breadcrumb ${index + 1}`} value={item} maxLength={80} onChange={(event) => { const breadcrumb = [...blocks.hero.breadcrumb]; breadcrumb[index] = event.target.value; setBlock('hero', { ...blocks.hero, breadcrumb }); }} error={fieldError(errors, `hero.breadcrumb.${index}`)} />} />
       <div className="grid gap-3 sm:grid-cols-2"><Input label="Reviewer name" value={blocks.hero.reviewer.name} maxLength={120} onChange={(event) => setBlock('hero', { ...blocks.hero, reviewer: { ...blocks.hero.reviewer, name: event.target.value } })} /><Input label="Reviewer credentials" value={blocks.hero.reviewer.credentials} maxLength={160} onChange={(event) => setBlock('hero', { ...blocks.hero, reviewer: { ...blocks.hero.reviewer, credentials: event.target.value } })} /></div>
-      <Input label="Reading time (minutes)" type="number" min={1} max={240} value={blocks.hero.reading_time_minutes ?? ''} onChange={(event) => setBlock('hero', { ...blocks.hero, reading_time_minutes: event.target.value ? Number(event.target.value) : null })} />
+      <Input label="Reading time (minutes)" type="text" inputMode="numeric" pattern="[0-9]*" value={blocks.hero.reading_time_minutes ?? ''} onChange={(event) => setBlock('hero', { ...blocks.hero, reading_time_minutes: parseReadingTimeMinutes(event.target.value) })} />
     </Section>
 
     <Section title="Key Takeaways" enabled={blocks.key_takeaways.enabled} complete={!blocks.key_takeaways.enabled || Boolean(blocks.key_takeaways.heading && blocks.key_takeaways.items.length)} onEnabledChange={(enabled) => setBlock('key_takeaways', { ...blocks.key_takeaways, enabled })}>

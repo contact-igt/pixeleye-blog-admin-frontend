@@ -1,4 +1,4 @@
-﻿/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, @next/next/no-img-element */
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, @next/next/no-img-element */
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState, useTransition } from 'react';
@@ -227,7 +227,7 @@ export default function MediaPage() {
   const empty = !loading && !error && items.length === 0;
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <PageHeader
         title="Media Library"
         description="Upload clinical images, manage alt metadata, preview asset variants, and handle asset retentions."
@@ -255,8 +255,8 @@ export default function MediaPage() {
       {error && <Alert variant="error" action={<Button variant="outline" size="sm" onClick={() => void load()}>Retry</Button>}>{error}</Alert>}
 
       {/* Media tools */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="min-w-0 space-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <label className="relative min-w-[240px] flex-1">
             <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -315,7 +315,7 @@ export default function MediaPage() {
 
       {/* Loading Skeleton */}
       {loading && (
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid min-w-0 gap-5 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 8 }).map((_, index) => (
             <Skeleton key={index} className="h-64 w-full" />
           ))}
@@ -347,7 +347,7 @@ export default function MediaPage() {
 
       {/* Media Grid */}
       {!loading && items.length > 0 && (
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid min-w-0 gap-5 md:grid-cols-2 lg:grid-cols-3">
           {items.map((asset) => (
             <MediaCard
               key={asset.id}
@@ -804,3 +804,4 @@ function PreviewModal({
     </Modal>
   );
 }
+
