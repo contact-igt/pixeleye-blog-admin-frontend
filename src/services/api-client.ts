@@ -1,8 +1,15 @@
 ﻿import { clearAccessToken, getAccessToken, setAccessToken } from './auth-token';
 import type { ApiResponse, AuthTokenResponse } from '@/types/auth';
+import config from '@/lib/config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_BLOG_API_URL ?? 'http://localhost:5000/api/v1';
+const API_URL = config.api.base;
 const TIMEOUT_MS = 8_000;
+
+if (!API_URL) {
+  console.error("[api-client] ⚠️ API_URL is undefined!");
+  console.error("[api-client] ENV:", process.env.NEXT_PUBLIC_ENV);
+  console.error("[api-client] config:", config);
+}
 
 type AuthFailureHandler = () => void;
 
@@ -106,7 +113,10 @@ export function resetApiClientCoordinationForTests(): void {
   refreshChannel = undefined;
   authFailureHandler = null;
 }
-export function buildApiUrl(path: string, baseUrl = API_URL): string {
+export function buildApiUrl(path: string, baseUrl: string | undefined = API_URL): string {
+  if (!baseUrl) {
+    throw new ApiClientError('The backend API URL is not configured');
+  }
   try {
     const parsed = new URL(baseUrl);
     if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol');
