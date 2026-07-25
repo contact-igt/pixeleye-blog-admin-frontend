@@ -113,7 +113,10 @@ export function resetApiClientCoordinationForTests(): void {
   refreshChannel = undefined;
   authFailureHandler = null;
 }
-export function buildApiUrl(path: string, baseUrl = API_URL): string {
+export function buildApiUrl(path: string, baseUrl: string | undefined = API_URL): string {
+  if (!baseUrl) {
+    throw new ApiClientError('The backend API URL is not configured');
+  }
   try {
     const parsed = new URL(baseUrl);
     if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol');
