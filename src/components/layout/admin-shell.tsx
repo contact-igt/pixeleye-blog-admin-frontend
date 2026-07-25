@@ -16,12 +16,30 @@ export function AdminShell({ children }: Readonly<{ children: React.ReactNode }>
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const pathname = usePathname() ?? '/dashboard';
   const { admin, logout } = useAuth();
   const menuRef = useRef<HTMLDivElement>(null);
   const adminInitials = useMemo(() => initials(admin?.name), [admin?.name]);
-  const visibleNavigation = navigation.filter((item) => !admin?.role || item.allowedRoles.includes(admin.role));
+  const visibleNavigation = useMemo(() => navigation.filter((item) => !admin?.role || item.allowedRoles.includes(admin.role)), [admin?.role]);
   const activeNavItem = visibleNavigation.find((item) => item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href));
+
+  useEffect(() => {
+    setExpandedMenus(prev => {
+      let changed = false;
+      const next = { ...prev };
+      visibleNavigation.forEach(item => {
+        if (item.children) {
+          const isActive = pathname.startsWith(item.href) || item.children.some(c => pathname.startsWith(c.href));
+          if (isActive && next[item.href] === undefined) {
+            next[item.href] = true;
+            changed = true;
+          }
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [pathname, visibleNavigation]);
 
   useEffect(() => {
     function closeMenus(event: MouseEvent) {
@@ -70,9 +88,49 @@ export function AdminShell({ children }: Readonly<{ children: React.ReactNode }>
         <nav className="flex-1 overflow-y-auto px-3 py-6" aria-label="Main navigation">
           <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Workspace</p>
           <div className="space-y-1">
-            {visibleNavigation.map(({ label, href, icon: Icon }) => {
-              const active = href === '/dashboard' ? pathname === href : pathname.startsWith(href);
-              return <Link key={href} href={href} onClick={() => setMobileOpen(false)} aria-current={active ? 'page' : undefined} className={`focus-ring flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${active ? 'bg-sky-500 text-white' : 'text-slate-300 hover:bg-slate-900 hover:text-white'}`}><Icon size={18} aria-hidden="true" /><span>{label}</span></Link>;
+            {visibleNavigation.map(({ label, href, icon: Icon, children }) => {
+              const active = href === '/dashboard' ? pathname === href : (pathname.startsWith(href) || (children && children.some(c => pathname.startsWith(c.href))));
+              const isExpanded = expandedMenus[href] ?? active;
+              
+              return (
+                <div key={href} className="space-y-1">
+                  {children ? (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedMenus(prev => ({ ...prev, [href]: !isExpanded }))}
+                      className={`focus-ring flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${active ? 'bg-sky-500 text-white' : 'text-slate-300 hover:bg-slate-900 hover:text-white'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon size={18} aria-hidden="true" />
+                        <span>{label}</span>
+                      </div>
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  ) : (
+                    <Link href={href} onClick={() => setMobileOpen(false)} aria-current={active ? 'page' : undefined} className={`focus-ring flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${active ? 'bg-sky-500 text-white' : 'text-slate-300 hover:bg-slate-900 hover:text-white'}`}>
+                      <Icon size={18} aria-hidden="true" />
+                      <span>{label}</span>
+                    </Link>
+                  )}
+                  
+                  {children && isExpanded && (
+                    <div className="pl-11 pr-3 space-y-1 mt-1">
+                      {children.map((child) => {
+                        const childActive = pathname === child.href || pathname.startsWith(child.href + '/');
+                        return (
+                          <Link key={child.href} href={child.href} onClick={() => setMobileOpen(false)} aria-current={childActive ? 'page' : undefined} className={`focus-ring block rounded-md px-3 py-2 text-sm font-medium transition-colors ${childActive ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}>
+                            {child.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
             })}
           </div>
         </nav>
