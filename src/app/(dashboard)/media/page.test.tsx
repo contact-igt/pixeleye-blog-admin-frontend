@@ -1,4 +1,4 @@
-﻿import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import MediaPage from './page';
@@ -38,7 +38,7 @@ describe('MediaPage', () => {
     expect(screen.getByRole('button', { name: 'Active Media' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Trash' })).toBeInTheDocument();
     await screen.findByText('hero.jpg');
-    expect(screen.getByRole('button', { name: /Edit unavailable/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Edit/ })).toBeEnabled();
     await userEvent.click(screen.getByRole('button', { name: /^View$/ }));
     expect(screen.getByRole('dialog', { name: /Media Asset Details/ })).toBeInTheDocument();
   });

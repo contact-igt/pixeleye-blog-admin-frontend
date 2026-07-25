@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { useAuth } from '@/components/auth/auth-provider';
 import { createBlog, getPublishChecklist, publishBlog, unpublishBlog, updateBlog } from '@/services/blog.service';
+import { getCustomTemplate } from '@/services/custom-templates.service';
 import { ApiClientError } from '@/services/api-client';
 import type { BlogDetail, BlogPayload, BlogTemplateKey, PublishChecklist, TipTapDocument } from '@/types/blog';
 import type { MediaAsset } from '@/types/media';
@@ -19,7 +20,10 @@ import { RichTextEditor } from './rich-text-editor';
 import { FeaturedMediaPicker } from './featured-media-picker';
 import { ConfirmDialog, PreviewDialog } from './blog-dialogs';
 import { TemplateSelector } from './templates/template-selector';
+import { CustomTemplateSelector } from './templates/custom-template-selector';
 import { BlogBlockEditor } from './blocks/blog-block-editor';
+import { CustomTemplateBlockEditor } from './custom-template/custom-template-block-editor';
+import { validateFrontendCustomTemplateLayout } from './custom-template/custom-template-validation';
 
 const emptyDoc: TipTapDocument = { type: 'doc', content: [{ type: 'paragraph' }] };
 
@@ -82,6 +86,7 @@ type FormState = {
   seoDescription: string;
   canonicalUrl: string;
   templateKey: BlogTemplateKey;
+  customTemplateId: string | null;
   blocks: BlogBlocksDocument;
 };
 
@@ -100,6 +105,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
       seoDescription: draft?.seo_description ?? '',
       canonicalUrl: draft?.canonical_url ?? '',
       templateKey: draft?.template_key ?? initialTemplateKey,
+      customTemplateId: draft?.custom_template_id ?? null,
       blocks: normalizeBlogBlocks(draft?.blocks_json),
     }),
     [blog, draft, initialTemplateKey]
@@ -123,12 +129,16 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
   const leaveAction = useRef<() => void>(() => undefined);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [savedTemplateKey, setSavedTemplateKey] = useState<BlogTemplateKey>(initial.templateKey);
+  const [fetchedCustomTemplateConfig, setFetchedCustomTemplateConfig] = useState<unknown>(undefined);
 
   const dirty = JSON.stringify(form) !== snapshot;
   const templateSaved = current ? savedTemplateKey === form.templateKey : false;
   const selectedTemplateVersion = draft?.template_key === form.templateKey ? draft.template_version : form.templateKey === 'template_1' ? 2 : 1;
-  const selectedTemplateName = form.templateKey === 'template_2' ? 'Template 2' : 'Template 1';
-  const templateInstructions = form.templateKey === 'template_2'
+  const [customTemplateName, setCustomTemplateName] = useState('');
+  const selectedTemplateName = form.templateKey === 'custom_template' ? (customTemplateName || 'Custom Template') : form.templateKey === 'template_2' ? 'Template 2' : 'Template 1';
+  const templateInstructions = form.templateKey === 'custom_template'
+    ? ['This layout is defined by the selected Custom Template.', 'Add a featured image, title, excerpt, and article content as usual.', 'Switching templates later does not change your saved content blocks.']
+    : form.templateKey === 'template_2'
     ? ['Add a featured image, title, excerpt, and article content.', 'Use H2, H3, or H4 headings in the editor to build the Table of Contents.', 'On desktop, content appears left and the Table of Contents appears right.']
     : ['Add a featured image, title, excerpt, and article content.', 'Use headings when helpful; this layout does not display a Table of Contents.', 'Content appears in one comfortable centered reading column.'];
 
@@ -143,6 +153,31 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
+  useEffect(() => {
+    if (form.templateKey === 'custom_template' && form.customTemplateId) {
+      if (current?.draft_version?.template_key === 'custom_template' && current.draft_version.template_config_json) {
+        setFetchedCustomTemplateConfig(current.draft_version.template_config_json);
+        return;
+      }
+      let cancelled = false;
+      getCustomTemplate(form.customTemplateId)
+        .then((detail) => {
+          const config = detail?.current_version_detail?.layout_config_json || (detail?.current_version as Record<string, unknown> | null)?.layout_config_json;
+          if (!cancelled && config) {
+            setFetchedCustomTemplateConfig(config);
+          }
+        })
+        .catch(() => {
+          // Ignore error in preview fetch fallback
+        });
+      return () => {
+        cancelled = true;
+      };
+    } else {
+      setFetchedCustomTemplateConfig(undefined);
+    }
+  }, [form.templateKey, form.customTemplateId, current]);
+
   const change = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((old) => ({ ...old, [key]: value }));
 
   const payload = (): BlogPayload => ({
@@ -155,6 +190,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
     seo_description: form.seoDescription || null,
     canonical_url: form.canonicalUrl || null,
     template_key: form.templateKey,
+    custom_template_id: form.templateKey === 'custom_template' ? form.customTemplateId : null,
     blocks_json: form.blocks,
   });
 
@@ -393,15 +429,61 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
             />
           </SectionCard>
 
-          {((form.templateKey === 'template_1' && selectedTemplateVersion === 2) || form.templateKey === 'template_2') && <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><BlogBlockEditor value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} onMediaResolved={(id, media) => setBlockMedia((old) => media ? { ...old, [id]: media } : old)} /></Card>}
+          {form.templateKey === 'custom_template' ? (
+            (() => {
+              const { valid, config } = validateFrontendCustomTemplateLayout(fetchedCustomTemplateConfig);
+              if (!valid || !config) {
+                return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><p className="text-sm text-slate-600">Save the Draft to load this Custom Template's article sections.</p></Card>;
+              }
+              return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><CustomTemplateBlockEditor layoutConfig={config} value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} onMediaResolved={(id, media) => setBlockMedia((old) => media ? { ...old, [id]: media } : old)} /></Card>;
+            })()
+          ) : ((form.templateKey === 'template_1' && selectedTemplateVersion === 2) || form.templateKey === 'template_2') && <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><BlogBlockEditor value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} onMediaResolved={(id, media) => setBlockMedia((old) => media ? { ...old, [id]: media } : old)} /></Card>}
         </main>
 
         {/* Right Sidebar: Featured Image, SEO, Checklist, Metadata */}
-        <aside aria-label="Blog settings" className="min-w-0 xl:self-start xl:sticky xl:top-36">
+        <aside aria-label="Blog settings" className="min-w-0 xl:self-start xl:sticky xl:top-24">
           <div className="flex min-w-0 flex-col gap-5">
-          <SectionCard title="Article template" className="order-2 border border-slate-100 bg-white/80 backdrop-blur-md">
-            <p className="mb-3 text-xs leading-5 text-slate-500">Choose one controlled layout. Both templates use the same Blog fields; only the article layout changes.</p>
-            <TemplateSelector value={form.templateKey} onChange={(templateKey) => change('templateKey', templateKey)} disabled={busy} />
+          <SectionCard title="Article template" className="border border-slate-100 bg-white/80 backdrop-blur-md">
+            <p className="mb-3 text-xs leading-5 text-slate-500">Choose one controlled layout. Both system templates use the same Blog fields; only the article layout changes.</p>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">System Templates</p>
+            <TemplateSelector
+              value={form.templateKey}
+              onChange={(templateKey) => { change('templateKey', templateKey); change('customTemplateId', null); }}
+              disabled={busy}
+            />
+            <p className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wide text-slate-500">Custom Templates</p>
+            <CustomTemplateSelector
+              value={form.templateKey === 'custom_template' ? form.customTemplateId : null}
+              onChange={(id, template) => {
+                const nextBlocks = JSON.parse(JSON.stringify(form.blocks));
+                let modified = false;
+                const layout = (template.current_version as Record<string, unknown> | null)?.layout_config_json as { sections?: Array<{ slots?: Array<{ components?: Array<{ componentKey: string }> }> }> } | undefined;
+                if (layout?.sections) {
+                  layout.sections.forEach((sec) => {
+                    sec.slots?.forEach((slot) => {
+                      slot.components?.forEach((comp) => {
+                        const key = comp.componentKey as keyof typeof nextBlocks.blocks;
+                        if (key in nextBlocks.blocks && nextBlocks.blocks[key] && typeof nextBlocks.blocks[key] === 'object' && 'enabled' in nextBlocks.blocks[key]) {
+                          if (!nextBlocks.blocks[key].enabled) {
+                            nextBlocks.blocks[key].enabled = true;
+                            modified = true;
+                          }
+                        }
+                      });
+                    });
+                  });
+                }
+                setForm((old) => ({
+                  ...old,
+                  templateKey: 'custom_template',
+                  customTemplateId: id,
+                  blocks: modified ? nextBlocks : old.blocks
+                }));
+                setCustomTemplateName(template.name);
+                if (layout) setFetchedCustomTemplateConfig(layout);
+              }}
+              disabled={busy}
+            />
             <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/60 p-3" aria-live="polite">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-bold text-slate-900">Selected: {selectedTemplateName}</p>
@@ -419,7 +501,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
             )}
           </SectionCard>
 
-          <SectionCard title="Featured image" className="order-3 border border-slate-100 bg-white/80 backdrop-blur-md">
+          <SectionCard title="Featured image" className="border border-slate-100 bg-white/80 backdrop-blur-md">
             <FeaturedMediaPicker
               value={form.featuredMediaId}
               initial={selectedMedia}
@@ -431,7 +513,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
             />
           </SectionCard>
 
-          <details className="order-5 rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-xs backdrop-blur-md group">
+          <details className="rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-xs backdrop-blur-md group">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-slate-800">
               <span>Search & SEO</span>
               <span className="text-xs font-semibold text-slate-400 group-open:hidden">{[form.seoTitle, form.seoDescription, form.canonicalUrl].filter(Boolean).length}/3 complete</span>
@@ -456,7 +538,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
           </details>
           <SectionCard
             title="Publish readiness"
-            className="order-1 border border-slate-100 bg-white/80 backdrop-blur-md"
+            className="border border-slate-100 bg-white/80 backdrop-blur-md"
             action={
               current ? (
                 <button
@@ -489,7 +571,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
             )}
           </SectionCard>
 
-          <SectionCard title="Article details" className="order-4 border border-slate-100 bg-white/80 backdrop-blur-md">
+          <SectionCard title="Article details" className="border border-slate-100 bg-white/80 backdrop-blur-md">
             <div className="space-y-2.5 text-xs text-slate-600 font-semibold">
               <div className="flex items-center gap-2">
                 <User size={14} className="text-slate-400" />
@@ -522,6 +604,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
         slug={form.slug}
         templateKey={form.templateKey}
         templateVersion={selectedTemplateVersion}
+        customTemplateConfig={form.templateKey === 'custom_template' ? ((current?.draft_version?.template_key === 'custom_template' && current.draft_version.template_config_json) || fetchedCustomTemplateConfig) : undefined}
         content={form.content}
         blocks={form.blocks}
         blockMedia={blockMedia}

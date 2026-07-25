@@ -11,7 +11,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, busy, onCanc
   return <Drawer isOpen={open} onClose={onCancel} size="sm" title={title} footer={<><Button type="button" variant="outline" onClick={onCancel}>Cancel</Button><Button type="button" disabled={busy} onClick={onConfirm}>{busy ? 'Working…' : confirmLabel}</Button></>}><p className="text-sm font-semibold leading-6 text-slate-600">{message}</p></Drawer>;
 }
 
-export function PreviewDialog({ open, onClose, image, imageAlt, title, excerpt, html, content, blocks, blockMedia, seoTitle, seoDescription, slug, templateKey, templateVersion = 1, author, updatedAt }: {
+export function PreviewDialog({ open, onClose, image, imageAlt, title, excerpt, html, content, blocks, blockMedia, seoTitle, seoDescription, slug, templateKey, templateVersion = 1, customTemplateConfig, author, updatedAt }: {
   open: boolean;
   onClose: () => void;
   image?: string | null;
@@ -27,6 +27,7 @@ export function PreviewDialog({ open, onClose, image, imageAlt, title, excerpt, 
   slug: string;
   templateKey: BlogTemplateKey | string;
   templateVersion?: number;
+  customTemplateConfig?: unknown;
   author?: string | null;
   updatedAt?: string | null;
 }) {
@@ -39,7 +40,7 @@ export function PreviewDialog({ open, onClose, image, imageAlt, title, excerpt, 
       footer={<Button type="button" variant="outline" size="sm" onClick={onClose}>Close</Button>}
     >
       <div className="space-y-8">
-        <TemplatePreviewRenderer templateKey={templateKey} templateVersion={templateVersion} content={content} blocks={blocks} blockMedia={blockMedia} image={image} imageAlt={imageAlt} title={title} excerpt={excerpt} html={html} author={author} updatedAt={updatedAt} />
+        <TemplatePreviewRenderer templateKey={templateKey} templateVersion={templateVersion} content={content} customTemplateConfig={customTemplateConfig} blocks={blocks} blockMedia={blockMedia} image={image} imageAlt={imageAlt} title={title} excerpt={excerpt} html={html} author={author} updatedAt={updatedAt} />
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">SEO Preview Summary</p>
           <p className="mt-2 text-base font-bold text-sky-700">{seoTitle || title || 'Untitled Blog'}</p>

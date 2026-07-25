@@ -1,6 +1,6 @@
-import { HealthDashboard } from '@/components/dashboard/health-dashboard';
+import { DashboardOverview } from '@/components/dashboard/dashboard-overview';
 
 export default function DashboardPage() {
-  return <HealthDashboard />;
+  return <DashboardOverview />;
 }
 

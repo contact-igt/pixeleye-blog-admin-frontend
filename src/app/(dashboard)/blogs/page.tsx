@@ -1,4 +1,4 @@
-﻿/* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
@@ -448,6 +448,8 @@ export default function BlogsPage() {
             slug={previewBlog.slug}
             templateKey={version?.template_key ?? 'template_1'}
             templateVersion={version?.template_version ?? 1}
+            customTemplateConfig={version?.template_config_json}
+            blocks={version?.blocks_json as import('@/types/blog-blocks').BlogBlocksDocument | undefined}
             content={version?.content_json as import('@/types/blog').TipTapDocument | undefined}
             author={previewBlog.author?.name}
             updatedAt={previewBlog.updated_at}

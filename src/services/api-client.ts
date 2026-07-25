@@ -28,7 +28,13 @@ type AuthBroadcastMessage =
 export interface ApiFieldError { field?: string; message: string }
 
 export class ApiClientError extends Error {
-  constructor(message: string, public readonly status?: number, public readonly requestId?: string, public readonly errors: ApiFieldError[] = []) {
+  constructor(
+    message: string,
+    public readonly status?: number,
+    public readonly requestId?: string,
+    public readonly errors: ApiFieldError[] = [],
+    public readonly data?: Record<string, unknown>
+  ) {
     super(message);
     this.name = 'ApiClientError';
   }
@@ -199,7 +205,8 @@ export async function apiRequest<T>(path: string, init: ApiRequestOptions = {}, 
         typeof payload?.message === 'string' ? payload.message : 'The API request failed',
         response.status,
         typeof payload?.request_id === 'string' ? payload.request_id : response.headers.get('x-request-id') ?? undefined,
-        Array.isArray(payload?.errors) ? payload.errors as ApiFieldError[] : []
+        Array.isArray(payload?.errors) ? payload.errors as ApiFieldError[] : [],
+        payload?.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : undefined
       );
     }
     return payload as T;

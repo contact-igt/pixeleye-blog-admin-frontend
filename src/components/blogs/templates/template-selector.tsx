@@ -6,7 +6,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { listBlogTemplates } from '@/services/blog.service';
 import type { BlogTemplate, BlogTemplateKey } from '@/types/blog';
-import { supportedTemplateVersions } from './template-registry';
+import { supportedVersionsFor } from './template-registry';
 
 function Diagram({ templateKey }: { templateKey: BlogTemplateKey }) {
   return templateKey === 'template_1' ? (
@@ -25,7 +25,7 @@ export function TemplateSelector({ value, onChange, disabled = false }: { value:
     setLoading(true); setError('');
     try {
       const result = await listBlogTemplates();
-      const supported = result.filter((template) => supportedTemplateVersions[template.key]?.includes(template.version));
+      const supported = result.filter((template) => supportedVersionsFor(template.key)?.includes(template.version));
       if (supported.length !== 2) throw new Error('The two required system templates are unavailable.');
       setTemplates(supported);
     } catch (caught) {
@@ -38,7 +38,7 @@ export function TemplateSelector({ value, onChange, disabled = false }: { value:
     listBlogTemplates()
       .then((result) => {
         if (!active) return;
-        const supported = result.filter((template) => supportedTemplateVersions[template.key]?.includes(template.version));
+        const supported = result.filter((template) => supportedVersionsFor(template.key)?.includes(template.version));
         if (supported.length !== 2) throw new Error('The two required system templates are unavailable.');
         setTemplates(supported);
       })

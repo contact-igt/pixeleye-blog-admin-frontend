@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/components/auth/auth-provider', () => ({ useAuth: () => ({ admin: { id: '1', name: 'Admin', role: mocks.role } }) }));
 vi.mock('@/services/template.service', () => ({ listTemplates: mocks.listTemplates, getTemplate: mocks.getTemplate }));
+vi.mock('@/services/custom-templates.service', () => ({
+  listCustomTemplates: vi.fn().mockResolvedValue({ items: [], pagination: { page: 1, limit: 50, total_items: 0, total_pages: 0, has_next_page: false, has_previous_page: false } })
+}));
 
 const items = [
   { key: 'template_1', version: 2, name: 'Template 1', description: 'A complete healthcare editorial layout with hero, article content, callouts, expert guidance, FAQ and disclaimer.', layout: 'single_column', type: 'system', is_editable: false, is_deletable: false, usage: { draft_count: 2, published_count: 1, total_blog_count: 2 } },
@@ -36,7 +39,7 @@ describe('Templates workspace', () => {
     expect(screen.getAllByText('Read-only')).toHaveLength(2);
     expect(screen.getByText('Used by 2 Blogs')).toBeInTheDocument();
     expect(screen.getByText('Not used by any Blogs yet')).toBeInTheDocument();
-    expect(screen.getByText('No custom templates yet')).toBeInTheDocument();
+    expect(await screen.findByText('No Custom Templates yet')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Create Template/i })).not.toBeInTheDocument();
   });
 
