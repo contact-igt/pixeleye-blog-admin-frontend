@@ -3,8 +3,13 @@ import type { AdminRole } from './auth';
 import type { BlogBlocksDocument } from './blog-blocks';
 
 export type BlogStatus = 'draft' | 'published' | 'unpublished' | 'trashed';
-export type BlogTemplateKey = 'template_1' | 'template_2';
+export type SystemBlogTemplateKey = 'template_1' | 'template_2';
+export type BlogTemplateKey = SystemBlogTemplateKey | 'custom_template';
 export type BlogTemplateLayout = 'single_column' | 'article_sidebar';
+
+export type BlogTemplateSelection =
+  | { kind: 'system'; templateKey: SystemBlogTemplateKey }
+  | { kind: 'custom'; customTemplateId: string };
 
 export interface BlogTemplate {
   key: BlogTemplateKey;
@@ -31,6 +36,9 @@ export interface BlogVersion {
   template_key: BlogTemplateKey;
   template_version: number;
   template: BlogTemplateSummary | null;
+  custom_template_id?: string | null;
+  custom_template_version_id?: string | null;
+  template_config_json?: unknown;
   created_at: string;
 }
 export interface BlogListItem { id: string; title: string; slug: string; excerpt: string | null; status: BlogStatus; previous_status?: BlogStatus | null; featured_media: Partial<MediaAsset> | null; author: BlogAdminSummary | null; published_at: string | null; unpublished_at?: string | null; trashed_at?: string | null; trashed_by?: BlogAdminSummary | null; updated_at: string; created_at: string; has_unpublished_changes: boolean; has_unpublished_template_changes?: boolean }
@@ -43,4 +51,4 @@ export interface TipTapDocument { type: 'doc'; content?: TipTapNode[] }
 export type PublishChecklistStatus = 'complete' | 'incomplete' | 'warning';
 export interface PublishChecklistItem { key: string; status: PublishChecklistStatus; message: string }
 export interface PublishChecklist { ready: boolean; items: PublishChecklistItem[] }
-export interface BlogPayload { blocks_json?: BlogBlocksDocument; title?: string; slug?: string; excerpt?: string | null; content_json?: TipTapDocument; featured_media_id?: string | null; seo_title?: string | null; seo_description?: string | null; canonical_url?: string | null; template_key?: BlogTemplateKey }
+export interface BlogPayload { blocks_json?: BlogBlocksDocument; title?: string; slug?: string; excerpt?: string | null; content_json?: TipTapDocument; featured_media_id?: string | null; seo_title?: string | null; seo_description?: string | null; canonical_url?: string | null; template_key?: BlogTemplateKey; custom_template_id?: string | null }

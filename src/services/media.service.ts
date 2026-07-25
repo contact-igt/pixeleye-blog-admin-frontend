@@ -1,4 +1,4 @@
-﻿import { apiRequest, type ApiRequestOptions } from './api-client';
+import { apiRequest, type ApiRequestOptions } from './api-client';
 import type { ApiResponse } from '@/types/auth';
 import type { MediaAsset, MediaListParams, MediaListResponse } from '@/types/media';
 
@@ -46,6 +46,11 @@ export async function restoreMediaAsset(id: string, options: ApiRequestOptions =
 
 export async function permanentlyDeleteMediaAsset(id: string, options: ApiRequestOptions = {}): Promise<MediaAsset & { deleted_object_count?: number; already_deleted?: boolean; already_deleting?: boolean }> {
   const response = await apiRequest<ApiResponse<MediaAsset & { deleted_object_count?: number; already_deleted?: boolean; already_deleting?: boolean }>>(`/media/assets/${encodeURIComponent(id)}/permanent`, { method: 'DELETE', ...options });
+  return response.data;
+}
+
+export async function updateMediaAsset(id: string, updates: { purpose?: string; alt_text?: string | null; original_file_name?: string }, options: ApiRequestOptions = {}): Promise<MediaAsset> {
+  const response = await apiRequest<ApiResponse<MediaAsset>>(`/media/assets/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(updates), ...options });
   return response.data;
 }
 

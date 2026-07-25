@@ -1,4 +1,4 @@
-﻿/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, @next/next/no-img-element */
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, @next/next/no-img-element */
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState, useTransition } from 'react';
@@ -24,6 +24,7 @@ import {
   moveMediaAssetToTrash,
   permanentlyDeleteMediaAsset,
   restoreMediaAsset,
+  updateMediaAsset,
   uploadMediaAsset,
 } from '@/services/media.service';
 import type { MediaAsset, MediaListParams, MediaPurpose } from '@/types/media';
@@ -114,6 +115,7 @@ export default function MediaPage() {
   const requestId = useRef(0);
   const currentParams = useMemo(() => paramsFromSearch(searchParams, tab), [searchParams, tab]);
   const [searchText, setSearchText] = useState(currentParams.search ?? '');
+  const [editAsset, setEditAsset] = useState<MediaAsset | null>(null);
 
   useEffect(() => setSearchText(currentParams.search ?? ''), [currentParams.search]);
 
@@ -227,7 +229,7 @@ export default function MediaPage() {
   const empty = !loading && !error && items.length === 0;
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <PageHeader
         title="Media Library"
         description="Upload clinical images, manage alt metadata, preview asset variants, and handle asset retentions."
@@ -255,8 +257,8 @@ export default function MediaPage() {
       {error && <Alert variant="error" action={<Button variant="outline" size="sm" onClick={() => void load()}>Retry</Button>}>{error}</Alert>}
 
       {/* Media tools */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="min-w-0 space-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <label className="relative min-w-[240px] flex-1">
             <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -315,7 +317,7 @@ export default function MediaPage() {
 
       {/* Loading Skeleton */}
       {loading && (
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid min-w-0 gap-5 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 8 }).map((_, index) => (
             <Skeleton key={index} className="h-64 w-full" />
           ))}
@@ -347,7 +349,7 @@ export default function MediaPage() {
 
       {/* Media Grid */}
       {!loading && items.length > 0 && (
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid min-w-0 gap-5 md:grid-cols-2 lg:grid-cols-3">
           {items.map((asset) => (
             <MediaCard
               key={asset.id}
@@ -358,6 +360,7 @@ export default function MediaPage() {
               canTrash={canMoveToTrash(asset, admin?.id, admin?.role)}
               canPermanent={canPermanentDelete(admin?.role)}
               onPreview={() => setPreview(asset)}
+              onEdit={() => setEditAsset(asset)}
               onTrash={() => setPendingAction({ kind: 'trash', asset })}
               onRestore={() => setPendingAction({ kind: 'restore', asset })}
               onPermanent={() => setPendingAction({ kind: 'permanent', asset })}
@@ -396,6 +399,19 @@ export default function MediaPage() {
           onTrash={tab === 'active' && canMoveToTrash(preview, admin?.id, admin?.role) ? () => setPendingAction({ kind: 'trash', asset: preview }) : undefined}
           onRestore={tab === 'trash' && canMoveToTrash(preview, admin?.id, admin?.role) ? () => setPendingAction({ kind: 'restore', asset: preview }) : undefined}
           onPermanent={tab === 'trash' && canPermanentDelete(admin?.role) ? () => setPendingAction({ kind: 'permanent', asset: preview }) : undefined}
+        />
+      )}
+
+      {editAsset && (
+        <EditModal
+          asset={editAsset}
+          onClose={() => setEditAsset(null)}
+          onSaved={(updated) => {
+            setItems((curr) => curr.map((item) => (item.id === updated.id ? updated : item)));
+            if (preview?.id === updated.id) setPreview(updated);
+            setEditAsset(null);
+            setNotice('Media asset updated successfully.');
+          }}
         />
       )}
 
@@ -456,6 +472,7 @@ function MediaCard({
   canTrash,
   canPermanent,
   onPreview,
+  onEdit,
   onTrash,
   onRestore,
   onPermanent,
@@ -467,6 +484,7 @@ function MediaCard({
   canTrash: boolean;
   canPermanent: boolean;
   onPreview(): void;
+  onEdit?(): void;
   onTrash(): void;
   onRestore(): void;
   onPermanent(): void;
@@ -529,9 +547,8 @@ function MediaCard({
                 variant="outline"
                 size="sm"
                 className="h-10 w-full px-2"
-                disabled
-                title="Media editing requires a backend update API"
-                aria-label="Edit unavailable — media update API required"
+                onClick={onEdit || onPreview}
+                aria-label={`Edit metadata for ${asset.original_file_name}`}
               >
                 <Pencil size={14} aria-hidden="true" />
                 <span>Edit</span>
@@ -681,6 +698,93 @@ function UploadModal({ onClose, onUploaded }: { onClose(): void; onUploaded(asse
   );
 }
 
+function EditModal({
+  asset,
+  onClose,
+  onSaved
+}: {
+  asset: MediaAsset;
+  onClose(): void;
+  onSaved(updated: MediaAsset): void;
+}) {
+  const [fileName, setFileName] = useState(asset.original_file_name || '');
+  const [altText, setAltText] = useState(asset.alt_text || '');
+  const [purpose, setPurpose] = useState<MediaPurpose>(asset.purpose || 'hero');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await updateMediaAsset(asset.id, {
+        original_file_name: fileName.trim() || undefined,
+        alt_text: altText.trim(),
+        purpose
+      });
+      onSaved(updated);
+    } catch (caught) {
+      setError(safeError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Edit Image Details"
+      description="Update image title, alt text for accessibility, or usage purpose."
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={submit} isLoading={busy}>
+            Save changes
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="space-y-4">
+        <Input
+          label="Image Title / Name"
+          value={fileName}
+          onChange={(e) => setFileName(e.target.value)}
+          placeholder="Original filename or title..."
+        />
+
+        <Input
+          label="Alt Text (Accessibility)"
+          value={altText}
+          maxLength={255}
+          onChange={(e) => setAltText(e.target.value)}
+          placeholder="Describe image for screen readers..."
+        />
+
+        <Select
+          label="Purpose"
+          value={purpose}
+          onChange={(e) => setPurpose(e.target.value as MediaPurpose)}
+          options={mediaPurposes.map((item) => ({ label: item, value: item }))}
+        />
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-center gap-3">
+          <img src={asset.variants.thumbnail?.url ?? asset.original_url ?? ''} alt={altText || fileName} className="h-16 w-16 rounded-lg object-cover" />
+          <div className="text-xs text-slate-600">
+            <p className="font-semibold text-slate-800">{fileName || asset.original_file_name}</p>
+            <p>{asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'Dimensions unavailable'} | {formatBytes(asset.file_size)}</p>
+          </div>
+        </div>
+
+        {error && <Alert variant="error">{error}</Alert>}
+      </form>
+    </Modal>
+  );
+}
+
 function PreviewModal({
   asset,
   onClose,
@@ -804,3 +908,4 @@ function PreviewModal({
     </Modal>
   );
 }
+

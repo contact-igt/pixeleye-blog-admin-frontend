@@ -1,16 +1,17 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Columns2, Eye, FilePlus2, Info, LayoutTemplate, LockKeyhole, Rows3 } from 'lucide-react';
+import { Columns2, Eye, FilePlus2, Info, LockKeyhole, Rows3 } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { CustomTemplatesPanel } from '@/components/blogs/custom-template/custom-templates-panel';
 import { TemplatePreviewRenderer } from '@/components/blogs/templates/template-preview-renderer';
 import { templateTwoSampleBlocks, templateTwoSampleContent, templateTwoSampleHtml } from '@/components/blogs/templates/template-two-sample';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, SectionCard } from '@/components/ui/card';
 import { Drawer } from '@/components/ui/drawer';
-import { EmptyState, Skeleton } from '@/components/ui/empty-state';
+import { Skeleton } from '@/components/ui/empty-state';
 import { Modal } from '@/components/ui/modal';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -128,8 +129,8 @@ export default function TemplatesPage() {
       )}
     </section>
 
-    <SectionCard as="section" title={<span id="custom-templates-heading">Custom Templates</span>} subtitle="Reserved for a future controlled template-building workflow." aria-labelledby="custom-templates-heading">
-      <EmptyState icon={<LayoutTemplate className="h-10 w-10 text-slate-400" aria-hidden="true" />} title="No custom templates yet" description="Custom Template Builder will allow controlled reusable article layouts in a future phase." />
+    <SectionCard as="section" title={<span id="custom-templates-heading">Custom Templates</span>} subtitle="Reusable, versioned article layouts your team builds and manages." aria-labelledby="custom-templates-heading">
+      <CustomTemplatesPanel />
     </SectionCard>
 
     <Drawer isOpen={Boolean(detail)} onClose={() => setDetail(null)} title={detail?.name ?? 'Template Details'} description="System template configuration and current usage." size="md">

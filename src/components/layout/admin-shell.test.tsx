@@ -1,4 +1,4 @@
-﻿import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AdminShell } from './admin-shell';
@@ -31,6 +31,8 @@ describe('AdminShell', () => {
     expect(screen.getByRole('link', { name: /Templates/ })).toHaveAttribute('href', '/templates');
     expect(screen.getByRole('link', { name: /Media Library/ })).toHaveAttribute('href', '/media');
     expect(screen.getByText('Super Admin')).toBeInTheDocument();
+    expect(document.querySelector('.crm-panel')).toHaveClass('h-screen', 'overflow-hidden');
+    expect(screen.getByRole('main')).toHaveClass('overflow-x-clip');
   });
 
   it('marks Templates active on the Templates route', () => {

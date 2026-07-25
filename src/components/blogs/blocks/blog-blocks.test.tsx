@@ -30,11 +30,24 @@ describe('Article Sections editor', () => {
     render(<Harness />);
     expect(screen.getByRole('heading', { name: 'Article Sections' })).toBeInTheDocument();
     expect(screen.getByText(/cannot be disabled/)).toBeInTheDocument();
-    const toggle = screen.getAllByLabelText('Disabled')[0]!;
+    const toggle = screen.getAllByLabelText('Enable')[0]!;
     await user.click(toggle);
+    expect(screen.getByText('Disable')).toHaveClass('text-rose-600');
     await user.click(screen.getByRole('button', { name: 'Add takeaway' }));
     await user.type(screen.getByLabelText('Takeaway 1'), 'A real takeaway');
     expect(screen.getByLabelText('Takeaway 1')).toHaveValue('A real takeaway');
+  });
+
+  it('keeps reading time numeric while typing', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const readingTime = screen.getByLabelText('Reading time (minutes)');
+    await user.type(readingTime, 'abc12e3');
+    expect(readingTime).toHaveValue('123');
+    expect(screen.getByText(/"reading_time_minutes":123/)).toBeInTheDocument();
+    await user.clear(readingTime);
+    expect(readingTime).toHaveValue('');
+    expect(screen.getByText(/"reading_time_minutes":null/)).toBeInTheDocument();
   });
 
   it('adds, removes and moves repeaters with stable controls and a maximum', async () => {
@@ -105,3 +118,5 @@ describe('Template 1 v2 real block rendering', () => {
     expect(document.querySelector('[data-region="key-takeaways"]')).toBeNull();
   });
 });
+
+
