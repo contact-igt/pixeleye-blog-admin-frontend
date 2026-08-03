@@ -112,6 +112,7 @@ export default function CampaignsPage() {
       closeActionModal();
     } catch (err) {
       setModalError(getSafeApiErrorMessage(err));
+      await loadData();
     } finally {
       setIsModalLoading(false);
       setActionId(null);

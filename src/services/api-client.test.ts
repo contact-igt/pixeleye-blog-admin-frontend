@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearAccessToken, getAccessToken, setAccessToken } from './auth-token';
-import { apiRequest, buildApiUrl, resetApiClientCoordinationForTests } from './api-client';
+import { apiRequest, apiRequestFile, buildApiUrl, resetApiClientCoordinationForTests } from './api-client';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -112,6 +112,23 @@ describe('api client', () => {
     const refreshCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('/auth/refresh'));
     expect(refreshCalls).toHaveLength(1);
     expect(getAccessToken()).toBe('shared-access');
+  });
+
+  it('returns file response headers with the blob', async () => {
+    const response = new Response('Email\r\nreader@example.com', {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="subscribers.csv"'
+      }
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+    const result = await apiRequestFile('/newsletters/subscribers/export');
+
+    expect(await result.blob.text()).toContain('reader@example.com');
+    expect(result.contentType).toBe('text/csv; charset=utf-8');
+    expect(result.contentDisposition).toBe('attachment; filename="subscribers.csv"');
   });
 
   it('does not persist the access token in browser storage', () => {

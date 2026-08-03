@@ -374,6 +374,10 @@ export default function CampaignDetailPage() {
       showToast({ type: 'success', message: 'Campaign resumed.' });
     } catch (err) { 
       setModalError(getSafeApiErrorMessage(err));
+      const freshCampaign = await loadCampaign(true);
+      if (freshCampaign) {
+        await loadSupplementaryData(freshCampaign.id);
+      }
     } finally { 
       setActionLoading(false); 
     }

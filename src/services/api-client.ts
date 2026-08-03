@@ -6,9 +6,9 @@ const API_URL = config.api.base;
 const TIMEOUT_MS = 8_000;
 
 if (!API_URL) {
-  console.error("[api-client] ⚠️ API_URL is undefined!");
-  console.error("[api-client] ENV:", process.env.NEXT_PUBLIC_ENV);
-  console.error("[api-client] config:", config);
+  console.error("[api-client] API_URL is undefined!");
+  console.error('[api-client] ENV:', process.env.NEXT_PUBLIC_ENV);
+  console.error('[api-client] config:', config);
 }
 
 type AuthFailureHandler = () => void;
@@ -33,7 +33,16 @@ type AuthBroadcastMessage =
   | { type: 'refresh-failed' }
   | { type: 'logout' };
 
-export interface ApiFieldError { field?: string; message: string }
+export interface ApiFieldError {
+  field?: string;
+  message: string;
+}
+
+export interface ApiFileResponse {
+  blob: Blob;
+  contentType: string | null;
+  contentDisposition: string | null;
+}
 
 export class ApiClientError extends Error {
   constructor(
@@ -114,6 +123,7 @@ export function resetApiClientCoordinationForTests(): void {
   refreshChannel = undefined;
   authFailureHandler = null;
 }
+
 export function buildApiUrl(path: string, baseUrl: string | undefined = API_URL): string {
   if (!baseUrl) {
     throw new ApiClientError('The backend API URL is not configured');
@@ -129,7 +139,7 @@ export function buildApiUrl(path: string, baseUrl: string | undefined = API_URL)
 
 function buildHeaders(init: ApiRequestOptions): Headers {
   const headers = new Headers(init.headers);
-  headers.set('Accept', 'application/json');
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   if (!(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
   const token = getAccessToken();
@@ -146,6 +156,7 @@ async function performRequest(path: string, init: ApiRequestOptions): Promise<Re
   const timer = setTimeout(() => controller.abort(), init.timeoutMs ?? TIMEOUT_MS);
   const abortFromCaller = () => controller.abort();
   init.signal?.addEventListener('abort', abortFromCaller, { once: true });
+
   try {
     const { auth: _auth, retryOnUnauthorized: _retry, skipRefresh: _skip, timeoutMs: _timeout, ...requestInit } = init;
     return await fetch(buildApiUrl(path), {
@@ -153,7 +164,7 @@ async function performRequest(path: string, init: ApiRequestOptions): Promise<Re
       cache: init.cache ?? 'no-store',
       headers: buildHeaders(init),
       credentials: 'include',
-      signal: controller.signal
+      signal: controller.signal,
     });
   } finally {
     clearTimeout(timer);
@@ -176,9 +187,9 @@ async function refreshAccessToken(): Promise<string> {
         method: 'POST',
         auth: false,
         skipRefresh: true,
-        retryOnUnauthorized: false
+        retryOnUnauthorized: false,
       });
-      const payload = await parsePayload(response) as ApiResponse<AuthTokenResponse> | null;
+      const payload = (await parsePayload(response)) as ApiResponse<AuthTokenResponse> | null;
       if (!response.ok || !payload?.data?.access_token) {
         throw new ApiClientError(payload?.message ?? 'Authentication refresh failed', response.status);
       }
@@ -199,40 +210,81 @@ function responseCanRefresh(path: string, init: ApiRequestOptions): boolean {
   return init.auth !== false && init.retryOnUnauthorized !== false && !init.skipRefresh && !path.startsWith('/auth/login') && !path.startsWith('/auth/refresh');
 }
 
-export async function apiRequest<T>(path: string, init: ApiRequestOptions = {}, retried = false): Promise<T> {
-  try {
-    const response = await performRequest(path, init);
-    const payload = await parsePayload(response);
+async function performRequestWithRefresh(path: string, init: ApiRequestOptions = {}, retried = false): Promise<Response> {
+  const response = await performRequest(path, init);
 
-    if (response.status === 401 && shouldTryRefresh(path, init, retried)) {
-      try {
-        await refreshAccessToken();
-        return apiRequest<T>(path, init, true);
-      } catch (refreshError) {
-        clearAccessToken();
-        authFailureHandler?.();
-        if (refreshError instanceof ApiClientError) throw refreshError;
-        throw new ApiClientError('Authentication refresh failed', 401);
-      }
+  if (response.status === 401 && shouldTryRefresh(path, init, retried)) {
+    try {
+      await refreshAccessToken();
+      return performRequestWithRefresh(path, init, true);
+    } catch (refreshError) {
+      clearAccessToken();
+      authFailureHandler?.();
+      if (refreshError instanceof ApiClientError) throw refreshError;
+      throw new ApiClientError('Authentication refresh failed', 401);
     }
+  }
+
+  return response;
+}
+
+async function throwApiError(response: Response): Promise<never> {
+  const payload = await parsePayload(response);
+  throw new ApiClientError(
+    typeof payload?.message === 'string' ? payload.message : 'The API request failed',
+    response.status,
+    typeof payload?.request_id === 'string' ? payload.request_id : response.headers.get('x-request-id') ?? undefined,
+    Array.isArray(payload?.errors) ? (payload.errors as ApiFieldError[]) : [],
+    payload?.data && typeof payload.data === 'object' ? (payload.data as Record<string, unknown>) : undefined,
+  );
+}
+
+export async function apiRequest<T>(path: string, init: ApiRequestOptions = {}): Promise<T> {
+  try {
+    const response = await performRequestWithRefresh(path, init);
+    const payload = await parsePayload(response);
 
     if (!response.ok) {
       throw new ApiClientError(
         typeof payload?.message === 'string' ? payload.message : 'The API request failed',
         response.status,
         typeof payload?.request_id === 'string' ? payload.request_id : response.headers.get('x-request-id') ?? undefined,
-        Array.isArray(payload?.errors) ? payload.errors as ApiFieldError[] : [],
-        payload?.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : undefined
+        Array.isArray(payload?.errors) ? (payload.errors as ApiFieldError[]) : [],
+        payload?.data && typeof payload.data === 'object' ? (payload.data as Record<string, unknown>) : undefined,
       );
     }
+
     return payload as T;
   } catch (error) {
     normalizeFetchError(error);
   }
 }
 
+export async function apiRequestBlob(path: string, init: ApiRequestOptions = {}): Promise<Blob> {
+  try {
+    const response = await performRequestWithRefresh(path, init);
+    if (!response.ok) {
+      await throwApiError(response);
+    }
+    return response.blob();
+  } catch (error) {
+    normalizeFetchError(error);
+  }
+}
 
+export async function apiRequestFile(path: string, init: ApiRequestOptions = {}): Promise<ApiFileResponse> {
+  try {
+    const response = await performRequestWithRefresh(path, init);
+    if (!response.ok) {
+      await throwApiError(response);
+    }
 
-
-
-
+    return {
+      blob: await response.blob(),
+      contentType: response.headers.get('content-type'),
+      contentDisposition: response.headers.get('content-disposition'),
+    };
+  } catch (error) {
+    normalizeFetchError(error);
+  }
+}
