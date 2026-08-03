@@ -26,6 +26,7 @@ export function SystemHealthCard({ health, loading, error, onRetry }: SystemHeal
             System & Infrastructure Health
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">Live platform availability and API response latency</p>
+          {health && !loading && <p className="mt-1 text-[11px] text-slate-400">Last checked {new Date(health.timestamp).toLocaleTimeString()}</p>}
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={loading ? 'checking' : health ? 'healthy' : 'unavailable'} size="sm" />
@@ -42,13 +43,15 @@ export function SystemHealthCard({ health, loading, error, onRetry }: SystemHeal
       )}
 
       {loading ? (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
           <Skeleton className="h-16" />
           <Skeleton className="h-16" />
           <Skeleton className="h-16" />
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-3 text-xs">
+        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5 text-xs">
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
             <div className="flex items-center gap-2 text-slate-500">
               <Server size={14} />
@@ -71,6 +74,22 @@ export function SystemHealthCard({ health, loading, error, onRetry }: SystemHeal
               <span className="font-medium">Latency</span>
             </div>
             <p className="mt-1 font-bold text-slate-900">{health ? `${health.response_time_ms} ms` : '-'}</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+            <div className="flex items-center gap-2 text-slate-500">
+              <Server size={14} />
+              <span className="font-medium">Environment</span>
+            </div>
+            <p className="mt-1 truncate font-bold text-slate-900 capitalize">{health?.environment ?? '-'}</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+            <div className="flex items-center gap-2 text-slate-500">
+              <Clock3 size={14} />
+              <span className="font-medium">Version</span>
+            </div>
+            <p className="mt-1 truncate font-bold text-slate-900">{health?.version ?? '-'}</p>
           </div>
         </div>
       )}

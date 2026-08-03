@@ -7,7 +7,7 @@ export const sampleFrontendCustomTemplateConfig: CustomTemplateLayoutConfigV1 = 
   schemaVersion: 1,
   layoutId: 'frontend_sample_custom_layout_v1',
   metadata: {
-    name: 'Sample Healthcare Custom Template',
+    name: 'Sample Eye Care Custom Template',
     description: 'An internal frontend sample layout configuration for testing.'
   },
   page: {

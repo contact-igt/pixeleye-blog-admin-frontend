@@ -350,7 +350,7 @@ function RenderComponentInstance({
 
       case 'medical_disclaimer': {
         const disclaimer = disclaimerInstance;
-        const active = disclaimer && disclaimer.text ? disclaimer : isPreview ? { enabled: true, text: 'This information is for educational purposes only and does not substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider.' } : null;
+        const active = disclaimer && disclaimer.text ? disclaimer : isPreview ? { enabled: true, text: 'This information is for educational purposes only and does not substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified eye-care provider.' } : null;
         if (!active) return null;
         return (
           <div className={`rounded-xl border p-4 text-xs leading-relaxed ${component.settings.variant === 'prominent' ? 'border-sky-300 bg-sky-50 text-slate-800' : 'border-amber-200 bg-amber-50/70 text-amber-900'}`}>

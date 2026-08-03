@@ -55,7 +55,7 @@ useEffect(() => {
         <div className="mb-3"><h2 id="workspace-title" className="text-base font-semibold text-slate-950">Content workspace</h2><p className="mt-1 text-sm text-slate-500">Quick access to the modules available in this deployment.</p></div>
         <div className="grid gap-4 md:grid-cols-2">
           <WorkspaceCard icon={FileText} title="Blogs" description="Create drafts, edit article content, manage SEO metadata, and control publication status." href="/blogs" action="Manage blogs" secondaryHref="/blogs/create" secondaryAction="Create article" tone="sky" />
-          <WorkspaceCard icon={ImageIcon} title="Media Library" description="Upload healthcare images, maintain alt text, preview variants, and manage retained assets." href="/media" action="Open library" tone="emerald" />
+          <WorkspaceCard icon={ImageIcon} title="Media Library" description="Upload eye-care images, maintain alt text, preview variants, and manage retained assets." href="/media" action="Open library" tone="emerald" />
         </div>
       </section>
     </div>

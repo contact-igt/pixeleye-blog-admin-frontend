@@ -14,6 +14,10 @@ const getApiUrl = () => {
     production: process.env.NEXT_PUBLIC_PROD_API_URL,
   };
 
+  const browserHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isLocalBrowser = ['localhost', '127.0.0.1', '::1'].includes(browserHostname);
+  if (isLocalBrowser && urls.local) return urls.local;
+
   const selectedUrl = urls[ENV as keyof typeof urls] || urls.local;
 
   if (!selectedUrl) {

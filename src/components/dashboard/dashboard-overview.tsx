@@ -15,6 +15,7 @@ import { RecentMedia } from './recent-media';
 import { DashboardQuickActions } from './dashboard-quick-actions';
 import { DashboardSkeleton } from './dashboard-skeleton';
 import { Alert } from '@/components/ui/alert';
+import { DashboardDetailReport } from './dashboard-detail-report';
 
 export function DashboardOverview() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -63,7 +64,7 @@ export function DashboardOverview() {
     <div className="space-y-6">
       <PageHeader
         title="Dashboard Overview"
-        description="Monitor healthcare article publications, tracked media storage, template configurations, and infrastructure health."
+        description="Monitor eye-care article publications, tracked media storage, template configurations, and infrastructure health."
         action={
           <Button variant="outline" size="sm" onClick={loadAll} isLoading={statsLoading || healthLoading}>
             <RefreshCw size={14} aria-hidden="true" />
@@ -85,7 +86,7 @@ export function DashboardOverview() {
             icon={FileText}
             label="Articles Overview"
             value={`${stats.blogs.published} Published`}
-            subcaption={`${stats.blogs.draft} Drafts | ${stats.blogs.trashed} Trashed | ${stats.blogs.total} Total`}
+            subcaption={`${stats.blogs.draft} Drafts | ${stats.insights?.editorial.unpublished ?? 0} Unpublished | ${stats.blogs.trashed} Trashed`}
             tone="sky"
           />
 
@@ -102,12 +103,14 @@ export function DashboardOverview() {
             icon={LayoutGrid}
             label="Template Systems"
             value={`${stats.templates.custom_active} Custom Active`}
-            subcaption={`${stats.templates.system_count} Built-in System Templates | ${stats.templates.custom_draft} Custom Drafts`}
+            subcaption={`${stats.templates.system_count} Built-in | ${stats.templates.custom_draft} Drafts | ${stats.templates.custom_archived} Archived`}
             tone="indigo"
           />
         </div>
       ) : null}
 
+
+      {stats && <DashboardDetailReport stats={stats} />}
       {/* Quick Action Shortcuts */}
       <DashboardQuickActions />
 
