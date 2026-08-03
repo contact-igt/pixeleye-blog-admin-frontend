@@ -8,11 +8,15 @@ export interface ConfirmationDialogProps {
   onClose: () => void;
   onConfirm: () => void | Promise<void>;
   title: string;
-  message: React.ReactNode;
+  message?: React.ReactNode;
+  children?: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
-  variant?: 'info' | 'warning' | 'destructive';
+  loadingText?: string;
+  variant?: 'default' | 'info' | 'warning' | 'destructive';
   isLoading?: boolean;
+  isConfirmDisabled?: boolean;
+  errorMessage?: string;
 }
 
 export function ConfirmationDialog({
@@ -21,12 +25,17 @@ export function ConfirmationDialog({
   onConfirm,
   title,
   message,
+  children,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
+  loadingText,
   variant = 'warning',
   isLoading = false,
+  isConfirmDisabled = false,
+  errorMessage,
 }: ConfirmationDialogProps) {
   const iconConfig = {
+    default: { icon: Info, color: 'text-slate-600 bg-slate-50 border-slate-200', btnVariant: 'primary' as const },
     info: { icon: Info, color: 'text-sky-600 bg-sky-50 border-sky-200', btnVariant: 'primary' as const },
     warning: { icon: AlertTriangle, color: 'text-amber-600 bg-amber-50 border-amber-200', btnVariant: 'primary' as const },
     destructive: { icon: Trash2, color: 'text-rose-600 bg-rose-50 border-rose-200', btnVariant: 'destructive' as const },
@@ -34,10 +43,16 @@ export function ConfirmationDialog({
 
   const Icon = iconConfig.icon;
 
+  const handleClose = () => {
+    if (!isLoading) {
+      onClose();
+    }
+  };
+
   return (
     <Drawer
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       size="sm"
       title={
         <div className="flex items-center gap-3">
@@ -49,16 +64,29 @@ export function ConfirmationDialog({
       }
       footer={
         <>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+          <Button variant="outline" onClick={handleClose} disabled={isLoading}>
             {cancelText}
           </Button>
-          <Button variant={iconConfig.btnVariant} onClick={onConfirm} isLoading={isLoading}>
-            {confirmText}
+          <Button 
+            variant={iconConfig.btnVariant} 
+            onClick={onConfirm} 
+            isLoading={isLoading}
+            disabled={isLoading || isConfirmDisabled}
+          >
+            {isLoading && loadingText ? loadingText : confirmText}
           </Button>
         </>
       }
     >
-      <div className="text-sm text-slate-600 leading-relaxed font-semibold">{message}</div>
+      <div className="space-y-4">
+        {message && <div className="text-sm text-slate-600 leading-relaxed font-semibold">{message}</div>}
+        {children}
+        {errorMessage && (
+          <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-600 border border-rose-200">
+            {errorMessage}
+          </div>
+        )}
+      </div>
     </Drawer>
   );
 }

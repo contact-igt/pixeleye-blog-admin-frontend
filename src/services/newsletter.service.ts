@@ -12,6 +12,7 @@ export interface SubscriberListResponse {
     verificationSentAt: string | null;
     verifiedAt: string | null;
     unsubscribedAt: string | null;
+    resubscriptionRequestedAt?: string | null;
     createdAt: string;
   }>;
   pagination: {
@@ -39,6 +40,72 @@ export interface CampaignStatsResponse {
   failed: number;
 }
 
+export type WorkerHealthStatus = 'starting' | 'active' | 'degraded' | 'stale' | 'offline' | 'stopping' | 'stopped' | 'failed';
+export type ClaimHealthStatus = 'healthy' | 'idle' | 'processing' | 'claim_failed' | 'blocked' | 'unknown';
+export type SmtpHealthStatus = 'ready' | 'auth_failed' | 'unavailable' | 'not_configured' | 'unknown';
+
+export interface WorkerHealthResponse {
+  worker_status: WorkerHealthStatus;
+  claim_status: ClaimHealthStatus;
+  database_status: 'ready' | 'unavailable' | 'unknown';
+  smtp_status: SmtpHealthStatus;
+  active_worker_count: number;
+  stale_worker_count: number;
+  latest_heartbeat_at: string | null;
+  heartbeat_age_seconds: number | null;
+  latest_worker: {
+    worker_instance_id: string;
+    process_id: number;
+    hostname: string;
+    status: Exclude<WorkerHealthStatus, 'stale' | 'offline'>;
+    claim_status: ClaimHealthStatus;
+    started_at: string | null;
+    last_heartbeat_at: string;
+    heartbeat_age_seconds: number;
+    last_successful_poll_at: string | null;
+    last_successful_claim_at: string | null;
+    last_successful_send_at: string | null;
+    database_ready: boolean;
+    smtp_ready: boolean;
+    last_error_code: string | null;
+    last_error_message: string | null;
+    consecutive_poll_failures: number;
+    consecutive_claim_failures: number;
+    last_claim_error_at: string | null;
+    last_heartbeat_error_at: string | null;
+    last_recovery_at: string | null;
+    stopped_at: string | null;
+  } | null;
+  thresholds: { heartbeat_interval_seconds: number; stale_after_seconds: number };
+}
+
+export interface DeliveryDiagnosticsResponse {
+  counts: {
+    pending: number;
+    processing: number;
+    retry_pending: number;
+    sent: number;
+    failed: number;
+    cancelled: number;
+    uncertain: number;
+  };
+  last_worker_heartbeat: string | null;
+  last_processing_attempt: string | null;
+  next_retry_at: string | null;
+  latest_error: { code: string; message: string; at: string } | null;
+}
+
+export interface QueuePreviewResponse {
+  campaign_id: string;
+  campaign_status: string;
+  subject: string;
+  blog: { id: string; title: string | null; slug: string } | null;
+  blog_version: { id: string; version_number: number } | null;
+  eligible_recipient_count: number;
+  excluded_counts: { pending: number; unsubscribed: number; deleted: number; invalid_email: number };
+  can_queue: boolean;
+  blocking_reason: string | null;
+}
 export interface CampaignListResponse {
   items: Array<{
     id: string;
@@ -141,6 +208,13 @@ export const newsletterService = {
     return response.data;
   },
 
+  async sendSubscriberResubscription(subscriberId: string) {
+    const response = await apiRequest<ApiResponse<any>>(`/admin/newsletter/subscribers/${subscriberId}/send-resubscription`, {
+      method: 'POST', body: JSON.stringify({})
+    });
+    return response.data;
+  },
+
   async deleteSubscriber(subscriberId: string, reason?: string) {
     const response = await apiRequest<ApiResponse<any>>(
       `/admin/newsletter/subscribers/${subscriberId}`,
@@ -175,7 +249,8 @@ export const newsletterService = {
 
   async getCampaign(id: string) {
     const response = await apiRequest<ApiResponse<any>>(`/admin/newsletter/campaigns/${id}`, {
-      method: 'GET'
+      method: 'GET',
+      cache: 'no-store'
     });
     return response.data;
   },
@@ -217,11 +292,50 @@ export const newsletterService = {
     return response.data;
   },
 
+  async getWorkerHealth() {
+    const response = await apiRequest<ApiResponse<WorkerHealthResponse>>('/admin/newsletter/worker-health', {
+      method: 'GET',
+      cache: 'no-store'
+    });
+    return response.data;
+  },
+
+  async getDeliveryDiagnostics(id: string) {
+    const response = await apiRequest<ApiResponse<DeliveryDiagnosticsResponse>>(
+      `/admin/newsletter/campaigns/${id}/delivery-diagnostics`,
+      { method: 'GET', cache: 'no-store' }
+    );
+    return response.data;
+  },
+
+  async getQueuePreview(id: string) {
+    const response = await apiRequest<ApiResponse<QueuePreviewResponse>>(`/admin/newsletter/campaigns/${id}/queue-preview`, { method: 'GET' });
+    return response.data;
+  },
   async queueCampaign(id: string) {
     const response = await apiRequest<ApiResponse<any>>(
       `/admin/newsletter/campaigns/${id}/queue`,
       { method: 'POST', body: JSON.stringify({}) }
     );
+    return response.data;
+  },
+
+  async pauseCampaign(id: string, reasonCode?: string, reasonMessage?: string) {
+    const response = await apiRequest<ApiResponse<any>>(`/admin/newsletter/campaigns/${id}/pause`, {
+      method: 'POST', body: JSON.stringify({ ...(reasonCode && { reason_code: reasonCode }), ...(reasonMessage && { reason_message: reasonMessage }) })
+    });
+    return response.data;
+  },
+
+  async resumeCampaign(id: string) {
+    const response = await apiRequest<ApiResponse<any>>(`/admin/newsletter/campaigns/${id}/resume`, { method: 'POST', body: JSON.stringify({}) });
+    return response.data;
+  },
+
+  async deleteCampaign(id: string, reason?: string) {
+    const response = await apiRequest<ApiResponse<any>>(`/admin/newsletter/campaigns/${id}`, {
+      method: 'DELETE', body: JSON.stringify({ ...(reason && { reason }) })
+    });
     return response.data;
   },
 
@@ -247,7 +361,7 @@ export const newsletterService = {
       ...(versionId && { version: versionId })
     });
     const response = await apiRequest<ApiResponse<FeedbackSummaryResponse>>(
-      `/admin/blogs/${blogId}/feedback-summary?${params}`,
+      `/blogs/${blogId}/feedback-summary?${params}`,
       { method: 'GET' }
     );
     return response.data;

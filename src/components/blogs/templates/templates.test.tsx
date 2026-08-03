@@ -168,7 +168,7 @@ describe('Template rendering regression coverage', () => {
     await user.click(question);
     expect(question).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText(/Seek immediate care/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Subscribe' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Subscribe Now' })).toBeDisabled();
   });
 
   it('switches renderer immediately without changing supplied article content', () => {

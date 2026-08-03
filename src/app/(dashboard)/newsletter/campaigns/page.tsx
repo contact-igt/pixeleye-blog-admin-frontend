@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/ui/page-header';
@@ -7,8 +9,10 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Pagination } from '@/components/ui/pagination';
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { useToast } from '@/contexts/toast-context';
+import { getSafeApiErrorMessage } from '@/utils/api-error';
 import { newsletterService, type CampaignStatsResponse } from '@/services/newsletter.service';
-import { Search } from 'lucide-react';
 
 interface Campaign {
   id: string;
@@ -19,6 +23,7 @@ interface Campaign {
   total_recipients: number;
   sent_count: number;
   failed_count: number;
+  cancelled_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -32,6 +37,13 @@ export default function CampaignsPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [totalPages, setTotalPages] = useState(0);
+  
+  const { showToast } = useToast();
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [actionType, setActionType] = useState<'queue' | 'cancel' | 'retry' | 'pause' | 'resume' | 'delete' | null>(null);
+  const [isModalLoading, setIsModalLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | undefined>();
+  const [actionId, setActionId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -55,27 +67,60 @@ export default function CampaignsPage() {
     void loadData();
   }, [loadData]);
 
-  const handleAction = async (action: string, id: string) => {
+  const handleActionClick = (action: 'queue' | 'cancel' | 'retry' | 'pause' | 'resume' | 'delete', campaign: Campaign) => {
+    setSelectedCampaign(campaign);
+    setActionType(action);
+    setModalError(undefined);
+  };
+
+  const closeActionModal = () => {
+    if (isModalLoading) return;
+    setActionType(null);
+    setSelectedCampaign(null);
+    setModalError(undefined);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!selectedCampaign || !actionType) return;
+    
+    setIsModalLoading(true);
+    setModalError(undefined);
+    const id = selectedCampaign.id;
+    setActionId(id);
+    
     try {
-      if (action === 'queue') {
-        if (!confirm('Are you sure you want to queue this campaign?')) return;
+      if (actionType === 'queue') {
         await newsletterService.queueCampaign(id);
-      } else if (action === 'cancel') {
-        if (!confirm('Are you sure you want to cancel this campaign?')) return;
+        showToast({ type: 'success', message: 'Campaign queued successfully.' });
+      } else if (actionType === 'cancel') {
         await newsletterService.cancelCampaign(id);
-      } else if (action === 'retry') {
-        if (!confirm('Are you sure you want to retry failed deliveries?')) return;
+        showToast({ type: 'success', message: 'Campaign cancelled.' });
+      } else if (actionType === 'retry') {
         await newsletterService.retryFailed(id);
+        showToast({ type: 'success', message: 'Campaign retried.' });
+      } else if (actionType === 'pause') {
+        await newsletterService.pauseCampaign(id, 'manual_review');
+        showToast({ type: 'success', message: 'Campaign paused.' });
+      } else if (actionType === 'resume') {
+        await newsletterService.resumeCampaign(id);
+        showToast({ type: 'success', message: 'Campaign resumed.' });
+      } else if (actionType === 'delete') {
+        await newsletterService.deleteCampaign(id);
+        showToast({ type: 'success', message: 'Campaign deleted.' });
       }
       void loadData();
+      closeActionModal();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Action failed');
+      setModalError(getSafeApiErrorMessage(err));
+    } finally {
+      setIsModalLoading(false);
+      setActionId(null);
     }
   };
 
   const calculateProgress = (campaign: Campaign) => {
     if (campaign.total_recipients === 0) return 0;
-    return Math.round((campaign.sent_count / campaign.total_recipients) * 100);
+    return Math.round(((campaign.sent_count + campaign.failed_count + campaign.cancelled_count) / campaign.total_recipients) * 100);
   };
 
   return (
@@ -138,6 +183,7 @@ export default function CampaignsPage() {
               <option value="draft">Draft</option>
               <option value="queued">Queued</option>
               <option value="sending">Sending</option>
+              <option value="paused">Paused</option>
               <option value="completed">Completed</option>
               <option value="partially_failed">Partially Failed</option>
               <option value="failed">Failed</option>
@@ -228,22 +274,29 @@ export default function CampaignsPage() {
                           <Button variant="ghost" size="sm" onClick={() => router.push(`/newsletter/campaigns/new?edit=${campaign.id}`)}>
                             Edit
                           </Button>
-                          <Button variant="ghost" size="sm" className="text-blue-600" onClick={() => void handleAction('queue', campaign.id)}>
+                          <Button variant="ghost" size="sm" className="text-blue-600" disabled={actionId === campaign.id || isModalLoading} onClick={() => handleActionClick('queue', campaign)}>
                             Queue
                           </Button>
+                          <Button variant="ghost" size="sm" className="text-red-600" disabled={actionId === campaign.id || isModalLoading} onClick={() => handleActionClick('delete', campaign)}>Delete</Button>
                         </>
                       )}
 
-                      {(campaign.status === 'queued' || campaign.status === 'sending') && (
-                        <Button variant="ghost" size="sm" className="text-red-600" onClick={() => void handleAction('cancel', campaign.id)}>
-                          Cancel
-                        </Button>
+                      {['queued', 'sending'].includes(campaign.status) && (
+                        <Button variant="ghost" size="sm" disabled={actionId === campaign.id || isModalLoading} onClick={() => handleActionClick('pause', campaign)}>{actionId === campaign.id ? 'Pausing…' : 'Pause'}</Button>
                       )}
+                      {campaign.status === 'queued' && <Button variant="ghost" size="sm" className="text-red-600" disabled={actionId === campaign.id || isModalLoading} onClick={() => handleActionClick('cancel', campaign)}>Cancel</Button>}
+                      {campaign.status === 'paused' && <>
+                        <Button variant="ghost" size="sm" disabled={actionId === campaign.id || isModalLoading} onClick={() => handleActionClick('resume', campaign)}>{actionId === campaign.id ? 'Resuming…' : 'Resume'}</Button>
+                        <Button variant="ghost" size="sm" className="text-red-600" disabled={actionId === campaign.id || isModalLoading} onClick={() => handleActionClick('cancel', campaign)}>Cancel</Button>
+                      </>}
 
                       {(campaign.status === 'failed' || campaign.status === 'partially_failed') && (
-                        <Button variant="ghost" size="sm" className="text-blue-600" onClick={() => void handleAction('retry', campaign.id)}>
+                        <Button variant="ghost" size="sm" className="text-blue-600" disabled={actionId === campaign.id || isModalLoading} onClick={() => handleActionClick('retry', campaign)}>
                           Retry
                         </Button>
+                      )}
+                      {['completed', 'partially_failed', 'failed', 'cancelled'].includes(campaign.status) && (
+                        <Button variant="ghost" size="sm" className="text-red-600" disabled={actionId === campaign.id || isModalLoading} onClick={() => handleActionClick('delete', campaign)}>Delete</Button>
                       )}
                     </div>
                   </td>
@@ -259,6 +312,42 @@ export default function CampaignsPage() {
           currentPage={page}
           totalPages={totalPages}
           onPageChange={setPage}
+        />
+      )}
+
+      {selectedCampaign && actionType && (
+        <ConfirmationDialog
+          isOpen={!!actionType}
+          onClose={closeActionModal}
+          onConfirm={handleConfirmAction}
+          isLoading={isModalLoading}
+          errorMessage={modalError}
+          title={
+            actionType === 'queue' ? 'Queue Campaign?' :
+            actionType === 'cancel' ? 'Cancel Campaign?' :
+            actionType === 'retry' ? 'Retry Failed Deliveries?' :
+            actionType === 'pause' ? 'Pause Campaign?' :
+            actionType === 'resume' ? 'Resume Campaign?' :
+            actionType === 'delete' ? `Delete Campaign?` : 'Confirm Action'
+          }
+          variant={actionType === 'delete' ? 'destructive' : actionType === 'queue' ? 'default' : 'warning'}
+          message={
+            actionType === 'queue' ? `This Campaign will be sent to ${selectedCampaign.total_recipients} eligible subscribers. Emails already sent cannot be recalled.` :
+            actionType === 'cancel' ? 'Emails already sent cannot be recalled. This action cannot be undone.' :
+            actionType === 'retry' ? 'Failed email deliveries will be retried.' :
+            actionType === 'pause' ? 'New email deliveries will stop. Emails already processing may still be sent.' :
+            actionType === 'resume' ? 'Pending and retryable deliveries will continue.' :
+            actionType === 'delete' ? 'Historical delivery records may be preserved. This action cannot be undone.' : ''
+          }
+          confirmText={
+            actionType === 'queue' ? 'Queue Campaign' :
+            actionType === 'cancel' ? 'Cancel Campaign' :
+            actionType === 'retry' ? 'Retry Deliveries' :
+            actionType === 'pause' ? 'Pause Campaign' :
+            actionType === 'resume' ? 'Resume Campaign' :
+            actionType === 'delete' ? 'Delete Campaign' : 'Confirm'
+          }
+          loadingText="Processing..."
         />
       )}
     </div>

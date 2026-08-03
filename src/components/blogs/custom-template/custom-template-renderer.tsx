@@ -6,10 +6,19 @@ import type { BlogBlocksDocument } from '@/types/blog-blocks';
 import { isRegisteredComponentKey, getComponentDefinition } from './component-registry';
 import type {
   CustomTemplateComponentInstance,
-  CustomTemplateResponsiveStrategy,
   CustomTemplateSectionLayout
 } from './custom-template.types';
 import { validateFrontendCustomTemplateLayout } from './custom-template-validation';
+import {
+  pageSpacingClasses,
+  pageTypographyClass,
+  pageWidthClass,
+  sectionGridClass,
+  resolveSectionSettings,
+  sectionBackgroundClass,
+  sectionWidthClass,
+  sectionPaddingClass
+} from './custom-template-settings';
 
 export interface CustomTemplateRendererProps {
   layoutConfig?: unknown;
@@ -22,21 +31,6 @@ export interface CustomTemplateRendererProps {
   isPreview?: boolean;
   previewDevice?: 'desktop' | 'tablet' | 'mobile';
 }
-
-const responsiveClassMap: Record<CustomTemplateResponsiveStrategy, string> = {
-  stack_on_mobile: 'flex flex-col md:flex-row gap-6',
-  sidebar_below_on_tablet: 'grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8',
-  equal_columns: 'grid grid-cols-1 md:grid-cols-2 gap-6',
-  main_sidebar: 'grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8',
-  three_to_two_to_one: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
-};
-
-const layoutFallbackClassMap: Record<CustomTemplateSectionLayout, string> = {
-  full_width: 'w-full space-y-6',
-  content_sidebar: 'grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8',
-  two_column: 'grid grid-cols-1 md:grid-cols-2 gap-6',
-  three_column: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'
-};
 
 export function CustomTemplateRenderer({
   layoutConfig,
@@ -74,64 +68,65 @@ export function CustomTemplateRenderer({
     );
   }
 
+  const spacing = pageSpacingClasses(config.page.spacing);
+
   return (
     <article
       data-template="custom_template"
       data-template-version={config.schemaVersion}
-      className={`mx-auto max-w-6xl space-y-10 px-4 py-8 font-sans ${
+      data-page-width={config.page.contentWidth}
+      data-page-background={config.page.background}
+      data-page-spacing={config.page.spacing}
+      data-page-typography={config.page.typography}
+      className={`w-full ${spacing.padding} ${pageTypographyClass(config.page.typography)} ${
         config.page.background === 'soft_gray' ? 'bg-slate-50' : config.page.background === 'brand_tint' ? 'bg-sky-50/40' : 'bg-white'
       }`}
     >
-      {config.sections
-        .filter((sec) => sec.enabled)
-        .map((section) => {
-          let gridClass = responsiveClassMap[section.responsiveStrategy] ?? layoutFallbackClassMap[section.layout];
-          if (previewDevice === 'mobile') {
-            gridClass = 'grid grid-cols-1 gap-6';
-          } else if (previewDevice === 'tablet') {
-            if (section.layout === 'three_column' || section.responsiveStrategy === 'three_to_two_to_one') {
-              gridClass = 'grid grid-cols-1 sm:grid-cols-2 gap-6';
-            } else if (section.layout === 'two_column' || section.responsiveStrategy === 'equal_columns') {
-              gridClass = 'grid grid-cols-1 sm:grid-cols-2 gap-6';
-            } else {
-              gridClass = 'grid grid-cols-1 gap-6';
-            }
-          }
-
-          return (
-            <section
-              key={`section-${section.id}`}
-              data-section-id={section.id}
-              className={`rounded-2xl p-6 ${
-                section.background === 'sky' ? 'bg-sky-50/80' : section.background === 'slate' ? 'bg-slate-100' : ''
-              }`}
-            >
-              <div className={gridClass}>
-                {section.slots.map((slot) => (
-                  <div key={`slot-${slot.id}`} data-slot-id={slot.id} className="space-y-6 min-w-0 w-full overflow-hidden">
-                    {slot.components
-                      .filter((comp) => comp.enabled)
-                      .map((component) => (
-                        <RenderComponentInstance
-                          key={`comp-${component.id}`}
-                          component={component}
-                          blocksDoc={blocksDoc}
-                          contentHtml={contentHtml}
-                          title={title}
-                          excerpt={excerpt}
-                          image={image}
-                          imageAlt={imageAlt}
-                          isPreview={isPreview}
-                          previewDevice={previewDevice}
-                          sectionLayout={section.layout}
-                        />
-                      ))}
+      <div className={`mx-auto w-full ${spacing.gap}`}>
+        {config.sections
+          .filter((sec) => sec.enabled)
+          .map((section) => {
+            const resolved = resolveSectionSettings(config.page, section.settings);
+            
+            return (
+              <section
+                key={`section-${section.id}`}
+                data-section-id={section.id}
+                data-section-layout={section.layout}
+                data-responsive-strategy={section.responsiveStrategy}
+                data-section-background={resolved.backgroundStyle}
+                data-section-width={resolved.width}
+                className={`${sectionBackgroundClass(resolved.backgroundStyle)}`}
+              >
+                <div className={`mx-auto w-full px-4 ${sectionWidthClass(resolved.width)} ${sectionPaddingClass(resolved.paddingTop, resolved.paddingBottom, previewDevice)}`}>
+                  <div className={sectionGridClass(section.layout, section.responsiveStrategy, previewDevice)}>
+                    {section.slots.map((slot) => (
+                      <div key={`slot-${slot.id}`} data-slot-id={slot.id} className="space-y-6 min-w-0 w-full overflow-hidden">
+                        {slot.components
+                          .filter((comp) => comp.enabled)
+                          .map((component) => (
+                            <RenderComponentInstance
+                              key={`comp-${component.id}`}
+                              component={component}
+                              blocksDoc={blocksDoc}
+                              contentHtml={contentHtml}
+                              title={title}
+                              excerpt={excerpt}
+                              image={image}
+                              imageAlt={imageAlt}
+                              isPreview={isPreview}
+                              previewDevice={previewDevice}
+                              sectionLayout={section.layout}
+                            />
+                          ))}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </section>
-          );
-        })}
+                </div>
+              </section>
+            );
+          })}
+      </div>
     </article>
   );
 }
@@ -194,7 +189,7 @@ function RenderComponentInstance({
           ? { name: 'Dr. Jane Smith', credentials: 'MD, Ophthalmologist' }
           : null;
         return (
-          <header className={`space-y-4 ${settings.alignment === 'center' ? 'text-center' : 'text-left'}`}>
+          <header data-hero-height={settings.height} data-hero-overlay={settings.overlay} className={`space-y-4 rounded-2xl p-6 ${settings.height === 'tall' ? 'min-h-96' : settings.height === 'compact' ? 'min-h-48' : 'min-h-72'} ${settings.overlay === 'strong' ? 'bg-slate-900 text-white' : settings.overlay === 'light' ? 'bg-slate-50' : 'bg-slate-100'} ${settings.alignment === 'center' ? 'text-center' : 'text-left'}`}>
             {category && (
               <span className="inline-block rounded-full bg-sky-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-sky-800">
                 {category}
@@ -276,7 +271,7 @@ function RenderComponentInstance({
             <ol className="space-y-3">
               {active.items.map((item, idx) => (
                 <li key={`nl-${idx}`} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-4">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-600 text-xs font-bold text-white">
+                  <span className={`flex h-7 shrink-0 items-center justify-center text-xs font-bold ${component.settings.style === 'simple' ? 'w-5 bg-transparent text-sky-700' : 'w-7 rounded-full bg-sky-600 text-white'}`}>
                     {idx + 1}
                   </span>
                   <div>
@@ -297,7 +292,7 @@ function RenderComponentInstance({
         const settings = component.settings;
         return (
           <blockquote
-            className={`rounded-xl border-l-4 border-sky-600 p-5 shadow-xs ${
+            className={`rounded-xl border-l-4 border-sky-600 p-5 shadow-xs ${settings.orientation === 'stacked' ? 'text-center' : 'text-left'} ${
               settings.background === 'soft' ? 'bg-sky-50/50' : 'bg-white'
             }`}
           >
@@ -341,7 +336,7 @@ function RenderComponentInstance({
             <h2 className="text-xl font-bold text-slate-900">{active.heading || 'Frequently Asked Questions'}</h2>
             <div className="space-y-3">
               {active.items.map((item, idx) => (
-                <details key={`faq-${idx}`} className="group rounded-xl border border-slate-200 bg-white p-4">
+                <details key={`faq-${idx}`} open={component.settings.defaultOpen === 'first' && idx === 0} className={`group rounded-xl border bg-white p-4 ${component.settings.layout === 'image_accordion' ? 'border-sky-300 bg-linear-to-r from-sky-50 to-white' : 'border-slate-200'}`}>
                   <summary className="cursor-pointer font-semibold text-slate-900 hover:text-sky-700">
                     {item.question}
                   </summary>
@@ -358,7 +353,7 @@ function RenderComponentInstance({
         const active = disclaimer && disclaimer.text ? disclaimer : isPreview ? { enabled: true, text: 'This information is for educational purposes only and does not substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider.' } : null;
         if (!active) return null;
         return (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs leading-relaxed text-amber-900">
+          <div className={`rounded-xl border p-4 text-xs leading-relaxed ${component.settings.variant === 'prominent' ? 'border-sky-300 bg-sky-50 text-slate-800' : 'border-amber-200 bg-amber-50/70 text-amber-900'}`}>
             <span className="font-bold uppercase tracking-wider text-amber-950">Medical Disclaimer: </span>
             {active.text}
           </div>
@@ -371,7 +366,7 @@ function RenderComponentInstance({
         if (!active) return null;
         return (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-600">
-            <p className="font-semibold">{active.prompt}</p>
+            {component.settings.showPrompt !== false ? <p className="font-semibold">{active.prompt}</p> : <p className="sr-only">Article feedback</p>}
           </div>
         );
       }
@@ -401,7 +396,7 @@ function RenderComponentInstance({
         return (
           <div className="space-y-4 w-full min-w-0 overflow-hidden">
             {active.heading && <h2 className="text-xl font-bold text-slate-900 break-words">{active.heading}</h2>}
-            <div className={`grid gap-4 ${isNarrowSlot ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
+            <div className={`grid gap-4 ${isNarrowSlot || component.settings.columns === 'one' ? 'grid-cols-1' : component.settings.columns === 'two' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
               {active.items.map((item, idx) => (
                 <div key={`ic-${idx}`} className="w-full min-w-0 rounded-xl border border-slate-200 bg-white p-4 overflow-hidden">
                   <h3 className="font-bold text-slate-900 break-words">{item.title}</h3>
@@ -423,7 +418,7 @@ function RenderComponentInstance({
     switch (component.componentKey) {
       case 'article_table_of_contents':
         return (
-          <nav aria-label="Table of contents" className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4 overflow-hidden">
+          <nav aria-label="Table of contents" data-heading-levels={component.settings.headingLevels.join(",")} className={`w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4 overflow-hidden ${component.settings.sticky ? 'lg:sticky lg:top-24' : ''}`}>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 break-words">Table of Contents</h3>
             <ul className="mt-2 space-y-1.5 text-xs text-sky-700">
               <li className="hover:underline cursor-pointer break-words">• 1. Overview of Eye Health</li>

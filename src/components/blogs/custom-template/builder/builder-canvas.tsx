@@ -5,6 +5,7 @@ import type { CustomTemplateLayoutConfigV1, CustomTemplateSection } from '../cus
 import type { SelectedElement } from './builder-state';
 import BuilderSection from './builder-section';
 import { Plus } from 'lucide-react';
+import { pageSpacingClasses, pageTypographyClass, pageWidthClass } from '../custom-template-settings';
 
 interface BuilderCanvasProps {
   layout: CustomTemplateLayoutConfigV1;
@@ -20,6 +21,7 @@ export default function BuilderCanvas({
   device = 'desktop'
 }: BuilderCanvasProps) {
   const sections = layout.sections;
+  const spacing = pageSpacingClasses(layout.page.spacing);
 
   if (sections.length === 0) {
     return (
@@ -38,7 +40,15 @@ export default function BuilderCanvas({
   }
 
   return (
-    <div className="w-full space-y-6 max-w-4xl mx-auto select-none">
+    <div
+      data-builder-page-width={layout.page.contentWidth}
+      data-builder-page-background={layout.page.background}
+      data-builder-page-spacing={layout.page.spacing}
+      data-builder-page-typography={layout.page.typography}
+      className={`w-full mx-auto select-none rounded-xl p-4 ${pageWidthClass(layout.page.contentWidth)} ${spacing.gap} ${pageTypographyClass(layout.page.typography)} ${
+        layout.page.background === 'soft_gray' ? 'bg-slate-50' : layout.page.background === 'brand_tint' ? 'bg-sky-50/40' : 'bg-white'
+      }`}
+    >
       {sections.map((section, idx) => (
         <BuilderSection
           key={section.id}
@@ -49,6 +59,7 @@ export default function BuilderCanvas({
           selectedElement={selectedElement}
           sections={sections}
           device={device}
+          pageSettings={layout.page}
         />
       ))}
     </div>

@@ -1,9 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { builderReducer, collectAllIds } from '../builder-reducer';
-import { initialState } from '../builder-state';
+import { initialState, type BuilderState } from '../builder-state';
 import { sampleFrontendCustomTemplateConfig } from '../../custom-template-sample';
 
 describe('builderReducer tests', () => {
+  it('uses the documented Full Width Page default', () => {
+    expect(initialState.layout.page).toEqual({ contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' });
+  });
+
+  it('keeps Page settings stable when selecting or editing a Section', () => {
+    let state = builderReducer(initialState, { type: 'add_section', layoutType: 'full_width' });
+    const sectionId = state.layout.sections[0].id;
+    state = builderReducer(state, { type: 'update_page_settings', updates: { contentWidth: 'narrow', background: 'brand_tint', spacing: 'spacious', typography: 'clinical' } });
+    state = builderReducer(state, { type: 'select_element', element: { type: 'section', sectionId } });
+    state = builderReducer(state, { type: 'update_section', sectionId, updates: { background: 'slate' } });
+    expect(state.layout.page).toEqual({ contentWidth: 'narrow', background: 'brand_tint', spacing: 'spacious', typography: 'clinical' });
+  });
   it('should support replace_layout', () => {
     const layout = JSON.parse(JSON.stringify(sampleFrontendCustomTemplateConfig));
     const nextState = builderReducer(initialState, { type: 'replace_layout', layout });
@@ -226,4 +238,29 @@ describe('builderReducer tests', () => {
     }
     expect(state.history.length).toBe(50);
   });
-});
+
+  it('never silently drops components when slot reduction exceeds capacity', () => {
+    const makeDivider = (id: string) => ({ id, componentKey: 'divider' as const, enabled: true, settings: { style: 'solid' as const } });
+    const layout = {
+      ...initialState.layout,
+      sections: [{
+        id: 'sec-overflow', layout: 'three_column' as const, responsiveStrategy: 'three_to_two_to_one' as const,
+        enabled: true, background: 'white' as const,
+        slots: [0, 1, 2].map((slotIndex) => ({
+          id: `slot-${slotIndex}`, name: `Slot ${slotIndex}`,
+          components: Array.from({ length: 7 }, (_, componentIndex) => makeDivider(`divider-${slotIndex}-${componentIndex}`))
+        }))
+      }]
+    };
+    let state: BuilderState = { ...initialState, layout };
+    state = builderReducer(state, { type: 'update_section', sectionId: 'sec-overflow', updates: { layout: 'two_column' } });
+    state = builderReducer(state, { type: 'apply_pending_layout_reduction' });
+    expect(state.pendingLayoutReduction).not.toBeNull();
+    expect(state.layout.sections[0].slots.flatMap((slot) => slot.components)).toHaveLength(21);
+    expect(state.validationMessage).toContain('exceed the new layout capacity');
+
+    state = builderReducer(state, { type: 'remove_pending_layout_overflow' });
+    expect(state.pendingLayoutReduction).toBeNull();
+    expect(state.layout.sections[0].slots.flatMap((slot) => slot.components)).toHaveLength(20);
+    expect(state.validationMessage).toContain('explicitly removed');
+  });});

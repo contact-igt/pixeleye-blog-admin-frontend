@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlogForm } from './blog-form';
@@ -179,11 +179,18 @@ describe('BlogForm template instructions and persistence confirmation', () => {
     const user = userEvent.setup();
     render(<BlogForm />);
     expect(await screen.findByText('Selected: Template 1')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Template 2 Sidebar' })).not.toBeInTheDocument();
     expect(screen.getByText('Use headings when helpful; this layout does not display a Table of Contents.')).toBeInTheDocument();
     expect(screen.getByText('Applies on first save')).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: /Article with Sidebar/ }));
     expect(screen.getByText('Selected: Template 2')).toBeInTheDocument();
     expect(screen.getByText('Use H2, H3, or H4 headings in the editor to build the Table of Contents.')).toBeInTheDocument();
+    const sidebarSection = screen.getByRole('heading', { name: 'Template 2 Sidebar' }).closest('section');
+    expect(sidebarSection).not.toBeNull();
+    expect(within(sidebarSection!).getByText('Appointment CTA')).toBeInTheDocument();
+    expect(within(sidebarSection!).getByText('Newsletter Subscription')).toBeInTheDocument();
+    expect(within(sidebarSection!).getAllByText('Required')).toHaveLength(2);
+    expect(within(sidebarSection!).queryByText(/Remove|Disable/)).not.toBeInTheDocument();
   });
 
   it('sends Template 2 and confirms it was saved in the returned Draft', async () => {
@@ -278,6 +285,8 @@ describe('BlogForm template instructions and persistence confirmation', () => {
 
     expect(await screen.findByText('Custom Blog Layout')).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: /Custom Blog Layout/ }));
+    expect(screen.getByText('Switch Custom Template?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Change Template' }));
 
     expect(await screen.findByText('Article Sections')).toBeInTheDocument();
     expect(screen.getByText('Numbered List #1')).toBeInTheDocument();

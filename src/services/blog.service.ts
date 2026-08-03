@@ -1,4 +1,4 @@
-﻿import { apiRequest, type ApiRequestOptions } from './api-client';
+import { apiRequest, type ApiRequestOptions } from './api-client';
 import type { ApiResponse } from '@/types/auth';
 import type { BlogDetail, BlogListParams, BlogListResponse, BlogPayload, BlogTemplate, PublishChecklist } from '@/types/blog';
 
@@ -33,7 +33,10 @@ export async function updateBlog(id: string, payload: BlogPayload, options: ApiR
   const response = await apiRequest<ApiResponse<BlogDetail>>(`/blogs/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload), ...options });
   return response.data;
 }
-export async function publishBlog(id: string, options: ApiRequestOptions = {}): Promise<BlogDetail> {
+export async function upgradeBlogCustomTemplate(id: string, options: ApiRequestOptions = {}): Promise<BlogDetail> {
+  const response = await apiRequest<ApiResponse<BlogDetail>>(`/blogs/${encodeURIComponent(id)}/upgrade-custom-template`, { method: 'POST', ...options });
+  return response.data;
+}export async function publishBlog(id: string, options: ApiRequestOptions = {}): Promise<BlogDetail> {
   const response = await apiRequest<ApiResponse<BlogDetail>>(`/blogs/${encodeURIComponent(id)}/publish`, { method: 'POST', ...options });
   return response.data;
 }

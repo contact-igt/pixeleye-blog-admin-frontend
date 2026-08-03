@@ -10,10 +10,15 @@ import SettingsPanel from './settings-panel';
 import DevicePreview from './device-preview';
 import { validateFrontendCustomTemplateLayout } from '../custom-template-validation';
 import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Modal } from '@/components/ui/modal';
 import { sampleFrontendCustomTemplateConfig } from '../custom-template-sample';
 import type { CustomTemplateLayoutConfigV1 } from '../custom-template.types';
+import { getComponentDefinition } from '../component-registry';
+import { asNormalizedCustomTemplateConfig } from '../custom-template-settings';
+import { useToast } from '@/contexts/toast-context';
 
 export interface CustomTemplateBuilderProps {
   mode: 'create' | 'edit';
@@ -42,14 +47,16 @@ export default function CustomTemplateBuilder({
   saveLabel,
   saving,
   saveError,
-  readOnly,
   onSave,
   onBack,
   onEditDetails,
   onAutoSave,
   draftRecoveryBanner
 }: CustomTemplateBuilderProps) {
-  const [state, dispatch] = useReducer(builderReducer, initialLayout ? { ...initialState, layout: initialLayout } : initialState);
+  const [state, dispatch] = useReducer(
+    builderReducer,
+    initialLayout ? { ...initialState, layout: asNormalizedCustomTemplateConfig(initialLayout) } : initialState
+  );
   const [showConfirmReset, setShowConfirmReset] = useState(false);
   const [showConfirmClear, setShowConfirmClear] = useState(false);
   const [showConfirmImport, setShowConfirmImport] = useState(false);
@@ -60,6 +67,8 @@ export default function CustomTemplateBuilder({
   const [editDesc, setEditDesc] = useState(metadata.description);
 
   const [activeTab, setActiveTab] = useState<'element' | 'page' | 'validate'>('element');
+
+  const { showToast } = useToast();
 
 
 
@@ -125,17 +134,26 @@ export default function CustomTemplateBuilder({
     if (!importPendingJson) return;
     try {
       const parsed = JSON.parse(importPendingJson);
-      dispatch({ type: 'replace_layout', layout: parsed });
+      dispatch({ type: 'replace_layout', layout: asNormalizedCustomTemplateConfig(parsed) });
     } catch {
-      alert('Corrupt JSON file.');
+      showToast({ type: 'error', message: 'Corrupt JSON file.' });
     }
     setImportPendingJson(null);
     setShowConfirmImport(false);
   };
 
+  const pendingSection = state.pendingLayoutReduction
+    ? state.layout.sections.find((section) => section.id === state.pendingLayoutReduction?.sectionId)
+    : undefined;
+  const pendingComponents = pendingSection?.slots.flatMap((slot) => slot.components) ?? [];
+  const affectedComponents = state.pendingLayoutReduction && pendingSection
+    ? pendingSection.slots.slice(state.pendingLayoutReduction.newSlotCount).flatMap((slot) => slot.components)
+    : [];
+  const pendingCapacity = (state.pendingLayoutReduction?.newSlotCount ?? 0) * 10;
+  const pendingOverflowCount = Math.max(0, pendingComponents.length - pendingCapacity);
+
   return (
     <div className="flex h-screen flex-col bg-slate-100 text-slate-900 overflow-hidden font-sans">
-      
       {/* Compact Global Header */}
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2 relative z-20">
         <div className="flex items-center gap-4">
@@ -298,15 +316,28 @@ export default function CustomTemplateBuilder({
         confirmText="Replace Layout"
       />
 
-      <ConfirmationDialog
+      <Modal
         isOpen={state.pendingLayoutReduction !== null}
-        title="Merge Section Slots?"
-        message="Changing to layout structure with fewer slots will deterministically merge components from extra slots into the first slot. No content is deleted. This action can be undone."
+        title="Reduce section slots?"
+        description="Review every affected component before changing this section layout."
         onClose={() => dispatch({ type: 'cancel_pending_layout_reduction' })}
-        onConfirm={() => dispatch({ type: 'apply_pending_layout_reduction' })}
-        variant="warning"
-        confirmText="Apply & Merge"
-      />
+        footer={<>
+          <Button type="button" variant="outline" onClick={() => dispatch({ type: 'cancel_pending_layout_reduction' })}>Cancel</Button>
+          <Button type="button" variant="secondary" disabled={pendingOverflowCount > 0} onClick={() => dispatch({ type: 'apply_pending_layout_reduction' })}>Move overflow</Button>
+          <Button type="button" variant="destructive" onClick={() => dispatch({ type: 'remove_pending_layout_overflow' })}>Remove overflow</Button>
+        </>}
+      >
+        <div className="space-y-4 text-sm text-slate-700">
+          <p>Components are moved in their current order. Nothing is removed by <strong>Move overflow</strong>.</p>
+          {pendingOverflowCount > 0 ? <Alert variant="warning">The new layout is over capacity by {pendingOverflowCount} component(s). Move overflow is unavailable until capacity is freed; Remove overflow is an explicit destructive choice.</Alert> : null}
+          <div>
+            <p className="font-semibold text-slate-900">Affected components ({affectedComponents.length})</p>
+            {affectedComponents.length > 0 ? <ul className="mt-2 list-disc space-y-1 pl-5">
+              {affectedComponents.map((component) => <li key={component.id}>{getComponentDefinition(component.componentKey).displayName} <span className="text-slate-400">({component.id})</span></li>)}
+            </ul> : <p className="mt-1 text-slate-500">No components are currently in the slots being removed.</p>}
+          </div>
+        </div>
+      </Modal>
 
       {/* Edit Details Modal */}
       {mode === 'create' && onEditDetails && (

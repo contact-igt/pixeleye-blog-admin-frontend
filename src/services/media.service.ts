@@ -1,4 +1,4 @@
-import { apiRequest, type ApiRequestOptions } from './api-client';
+import { ApiClientError, apiRequest, type ApiRequestOptions } from './api-client';
 import type { ApiResponse } from '@/types/auth';
 import type { MediaAsset, MediaListParams, MediaListResponse } from '@/types/media';
 
@@ -28,8 +28,30 @@ export async function getMediaAsset(id: string, options: ApiRequestOptions = {})
 }
 
 export async function uploadMediaAsset(formData: FormData, options: ApiRequestOptions = {}): Promise<MediaAsset> {
-  const response = await apiRequest<ApiResponse<MediaAsset>>('/media/assets', { method: 'POST', body: formData, ...options });
-  return response.data;
+  const response = await apiRequest<ApiResponse<unknown>>('/media/assets', {
+    method: 'POST',
+    body: formData,
+    timeoutMs: 60_000,
+    ...options
+  });
+  const candidate = isRecord(response.data) && 'asset' in response.data ? response.data.asset : response.data;
+  if (!isMediaAsset(candidate)) {
+    throw new ApiClientError('The media upload response was invalid');
+  }
+  return candidate;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isMediaAsset(value: unknown): value is MediaAsset {
+  if (!isRecord(value) || typeof value.id !== 'string') return false;
+  return typeof value.purpose === 'string'
+    && typeof value.storage_provider === 'string'
+    && isRecord(value.variants)
+    && typeof value.status === 'string'
+    && typeof value.created_at === 'string';
 }
 
 export async function moveMediaAssetToTrash(id: string, options: ApiRequestOptions = {}): Promise<MediaAsset & { already_trashed?: boolean; already_deleted?: boolean }> {

@@ -1,8 +1,10 @@
 import type {
   CustomTemplateLayoutConfigV1,
-  CustomTemplatePageSettings
+  CustomTemplatePageSettings,
+  CustomTemplateSectionLayout
 } from '../custom-template.types';
 import type { FrontendValidationError } from '../custom-template-validation';
+import { DEFAULT_CUSTOM_TEMPLATE_PAGE_SETTINGS } from '../custom-template-settings';
 
 export type PreviewDevice = 'desktop' | 'tablet' | 'mobile';
 
@@ -14,7 +16,7 @@ export type SelectedElement =
 
 export interface PendingLayoutReduction {
   sectionId: string;
-  newLayout: any;
+  newLayout: CustomTemplateSectionLayout;
   currentSlotCount: number;
   newSlotCount: number;
 }
@@ -35,10 +37,7 @@ export interface BuilderState {
 }
 
 export const initialPageSettings: CustomTemplatePageSettings = {
-  contentWidth: 'standard',
-  background: 'white',
-  spacing: 'normal',
-  typography: 'editorial'
+  ...DEFAULT_CUSTOM_TEMPLATE_PAGE_SETTINGS
 };
 
 export const initialLayout: CustomTemplateLayoutConfigV1 = {

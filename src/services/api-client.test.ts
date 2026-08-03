@@ -1,4 +1,4 @@
-﻿import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearAccessToken, getAccessToken, setAccessToken } from './auth-token';
 import { apiRequest, buildApiUrl, resetApiClientCoordinationForTests } from './api-client';
 
@@ -38,6 +38,17 @@ describe('api client', () => {
     });
   });
 
+  it('defaults API requests to no-store caching', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true, data: { ok: true } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(apiRequest('/health')).resolves.toMatchObject({ data: { ok: true } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ cache: 'no-store' })
+    );
+  });
+
   it('aborts requests after the configured timeout', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
@@ -45,6 +56,18 @@ describe('api client', () => {
     })));
     const assertion = expect(apiRequest('/health')).rejects.toThrow('The API request timed out');
     await vi.advanceTimersByTimeAsync(8_001);
+    await assertion;
+  });
+
+  it('supports a longer per-request timeout override', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    })));
+    const assertion = expect(apiRequest('/media/assets', { timeoutMs: 60_000 })).rejects.toThrow('The API request timed out');
+    await vi.advanceTimersByTimeAsync(8_001);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    await vi.advanceTimersByTimeAsync(52_000);
     await assertion;
   });
 

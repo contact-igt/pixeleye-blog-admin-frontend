@@ -6,6 +6,7 @@ import { Undo2, Redo2, Monitor, Tablet, Smartphone, FileUp, FileDown, Trash2, Ro
 import type { BuilderState } from './builder-state';
 import { exportLayout, importLayout } from './layout-import-export';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/contexts/toast-context';
 
 interface BuilderToolbarProps {
   state: BuilderState;
@@ -26,10 +27,12 @@ export default function BuilderToolbar({
 }: BuilderToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { showToast } = useToast();
+
   const handleExport = () => {
     const result = exportLayout(state.layout);
     if (!result.success) {
-      alert(result.error);
+      showToast({ type: 'error', message: result.error || 'Export failed' });
     }
   };
 
@@ -43,7 +46,7 @@ export default function BuilderToolbar({
       // Do level 2 check first to warn early
       const result = importLayout(text);
       if (!result.success) {
-        alert(result.error);
+        showToast({ type: 'error', message: result.error || 'Import failed' });
       } else {
         onImportFile(text);
       }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -8,10 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/input';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
-import { newsletterService, type SubscriberStatsResponse } from '@/services/newsletter.service';
+import { newsletterService, type SubscriberStatsResponse, type QueuePreviewResponse } from '@/services/newsletter.service';
 import { listBlogs, getBlog } from '@/services/blog.service';
 import type { BlogDetail } from '@/types/blog';
 import { Modal } from '@/components/ui/modal';
+import { useToast } from '@/contexts/toast-context';
+import { getSafeApiErrorMessage } from '@/utils/api-error';
 
 interface PublishedBlog {
   id: string;
@@ -37,6 +40,7 @@ export default function NewCampaignPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [subscriberStats, setSubscriberStats] = useState<SubscriberStatsResponse | null>(null);
+  const [queuePreview, setQueuePreview] = useState<QueuePreviewResponse | null>(null);
 
   // Modals
   const [showQueueConfirm, setShowQueueConfirm] = useState(false);
@@ -44,9 +48,12 @@ export default function NewCampaignPage() {
   const [testEmail, setTestEmail] = useState('');
   const [testLoading, setTestLoading] = useState(false);
   const [testSuccess, setTestSuccess] = useState(false);
+  const [testError, setTestError] = useState<string | undefined>();
   
   // Track draft campaign ID if we saved it
   const [campaignId, setCampaignId] = useState<string | null>(editId || null);
+
+  const { showToast } = useToast();
 
   useEffect(() => {
     const loadData = async () => {
@@ -93,29 +100,32 @@ export default function NewCampaignPage() {
   const isValid = selectedBlogId && subject.trim().length > 0;
   const canQueue = isValid && (subscriberStats?.subscribed ?? 0) > 0;
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = async (): Promise<string | null> => {
     try {
       setSaving(true);
       setError('');
+      let savedId = campaignId;
       if (campaignId) {
         await newsletterService.updateCampaign(campaignId, subject, previewText);
       } else {
         const campaign = await newsletterService.createCampaign(selectedBlogId, subject, previewText);
-        setCampaignId(campaign.id);
+        savedId = campaign.id;
+        setCampaignId(savedId);
       }
-      return true;
+      return savedId;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save draft');
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
   };
 
   const handleSaveDraftClick = async () => {
-    const success = await handleSaveDraft();
-    if (success) {
-      router.push(`/newsletter/campaigns/${campaignId || ''}`);
+    const savedId = await handleSaveDraft();
+    if (savedId) {
+      showToast({ type: 'success', message: 'Draft saved successfully.' });
+      router.push('/newsletter/campaigns/' + savedId);
     }
   };
 
@@ -123,6 +133,7 @@ export default function NewCampaignPage() {
     try {
       setTestLoading(true);
       setError('');
+      setTestError(undefined);
       setTestSuccess(false);
       
       let id = campaignId;
@@ -137,18 +148,35 @@ export default function NewCampaignPage() {
       
       await newsletterService.sendTestEmail(id, testEmail);
       setTestSuccess(true);
+      showToast({ type: 'success', message: 'Test email sent successfully.' });
       setTimeout(() => {
         setShowTestModal(false);
         setTestSuccess(false);
         setTestEmail('');
       }, 2000);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to send test email');
+      setTestError(getSafeApiErrorMessage(err));
     } finally {
       setTestLoading(false);
     }
   };
 
+  const openQueueConfirm = async () => {
+    try {
+      setError('');
+      let id = campaignId;
+      if (!id) {
+        const campaign = await newsletterService.createCampaign(selectedBlogId, subject, previewText);
+        id = campaign.id;
+        setCampaignId(id);
+      }
+      if (!id) throw new Error('Could not get campaign ID');
+      const preview = await newsletterService.getQueuePreview(id);
+      setQueuePreview(preview);
+      if (!preview.can_queue) { setError(preview.blocking_reason || 'No eligible subscribers available'); return; }
+      setShowQueueConfirm(true);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to prepare queue'); }
+  };
   const handleQueue = async () => {
     try {
       setSaving(true);
@@ -164,11 +192,14 @@ export default function NewCampaignPage() {
       }
       
       if (!id) throw new Error('Could not get campaign ID');
-      
+      const preview = await newsletterService.getQueuePreview(id);
+      if (!preview.can_queue) throw new Error(preview.blocking_reason || 'No eligible subscribers available');
       await newsletterService.queueCampaign(id);
+      showToast({ type: 'success', message: 'Campaign queued successfully.' });
       router.push(`/newsletter/campaigns/${id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to queue campaign');
+      showToast({ type: 'error', message: getSafeApiErrorMessage(err) });
+      setError(getSafeApiErrorMessage(err));
     } finally {
       setSaving(false);
       setShowQueueConfirm(false);
@@ -272,7 +303,7 @@ export default function NewCampaignPage() {
             <Button onClick={() => setShowTestModal(true)} variant="outline" disabled={!isValid || saving}>
               Send Test Email
             </Button>
-            <Button onClick={() => setShowQueueConfirm(true)} disabled={!canQueue || saving}>
+            <Button onClick={() => void openQueueConfirm()} disabled={!canQueue || saving}>
               Queue Campaign
             </Button>
           </div>
@@ -346,18 +377,19 @@ export default function NewCampaignPage() {
       {/* Modals */}
       <ConfirmationDialog
         isOpen={showQueueConfirm}
-        title="Queue Newsletter Campaign?"
+        title="Queue Campaign?"
+        variant="default"
         message={
           <div className="space-y-4 text-sm text-slate-600">
-            <p>You are about to queue the campaign <strong>"{subject}"</strong> for the blog article <strong>"{selectedBlog?.title}"</strong>.</p>
-            <p className="p-3 bg-blue-50 text-blue-900 rounded-lg">
-              <strong>{subscriberStats?.subscribed || 0}</strong> subscribed readers will receive this campaign.
-            </p>
-            <p className="text-red-600 font-medium">Warning: Emails already sent cannot be recalled.</p>
+            <p>You are about to queue <strong>{queuePreview?.eligible_recipient_count ?? 0}</strong> eligible recipients for <strong>{queuePreview?.blog?.title || selectedBlog?.title || 'the selected blog'}</strong>.</p>
+            <p className="p-3 bg-blue-50 text-blue-900 rounded-lg">Blog version: <strong>{queuePreview?.blog_version?.version_number ?? 'current'}</strong></p>
+            <p className="text-amber-700 font-medium">After queueing, the campaign cannot be edited. Only queued campaigns can be cancelled; sending campaigns are not cancellable.</p>
           </div>
         }
-        confirmText={saving ? "Queuing..." : "Queue Campaign"}
+        confirmText="Queue Campaign"
+        loadingText="Queuing..."
         onConfirm={handleQueue}
+        isLoading={saving}
         onClose={() => !saving && setShowQueueConfirm(false)}
       />
 
@@ -381,6 +413,12 @@ export default function NewCampaignPage() {
             />
           </div>
           
+          {testError && (
+            <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-600 border border-rose-200">
+              {testError}
+            </div>
+          )}
+
           {testSuccess && (
             <div className="p-2 bg-green-50 text-green-700 text-sm rounded border border-green-200">
               Test email sent successfully.
