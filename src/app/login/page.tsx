@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoginRouteGuard } from '@/components/auth/login-route-guard';
@@ -43,16 +43,16 @@ function LoginPageContent() {
 
   return (
     <main className="grid min-h-screen bg-slate-50 lg:grid-cols-[minmax(380px,0.9fr)_1.1fr]">
-      <section className="relative hidden overflow-hidden bg-slate-950 p-12 text-white lg:flex lg:flex-col" aria-label="Pixel Eye Healthcare CMS">
+      <section className="relative hidden overflow-hidden bg-slate-950 p-12 text-white lg:flex lg:flex-col" aria-label="Pixel Eye Eye Care CMS">
         <div className="absolute inset-x-0 top-0 h-1 bg-sky-500" />
-        <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-sky-500"><Activity size={21} aria-hidden="true" /></span><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-400">Pixel Eye</p><p className="font-bold">Healthcare CMS</p></div></div>
-        <div className="my-auto max-w-md"><span className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300"><ShieldCheck size={14} className="text-emerald-400" aria-hidden="true" />Secure role-based administration</span><h1 className="mt-6 text-4xl font-semibold leading-tight tracking-tight">A focused workspace for trusted healthcare content.</h1><p className="mt-4 text-base leading-7 text-slate-400">Manage editorial drafts, publishing workflows, and clinical media from one protected admin portal.</p></div>
+        <div className="flex items-center gap-3"><span className="flex h-10 w-[116px] items-center rounded-lg bg-white px-2"><img src="/assets/pixel-eye-logo.png" alt="Pixel Eye" className="h-auto w-full" /></span><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-400">Pixel Eye</p><p className="font-bold">Eye Care CMS</p></div></div>
+        <div className="my-auto max-w-md"><span className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300"><ShieldCheck size={14} className="text-emerald-400" aria-hidden="true" />Secure role-based administration</span><h1 className="mt-6 text-4xl font-semibold leading-tight tracking-tight">A focused workspace for trusted eye-care content.</h1><p className="mt-4 text-base leading-7 text-slate-400">Manage editorial drafts, publishing workflows, and clinical media from one protected admin portal.</p></div>
         <p className="text-xs text-slate-500">© {new Date().getFullYear()} Pixel Eye. Authorized administrators only.</p>
       </section>
 
       <section className="flex items-center justify-center px-5 py-10 sm:px-8" aria-label="Admin sign in">
         <div className="w-full max-w-md">
-          <div className="mb-8 flex items-center gap-3 lg:hidden"><span className="grid h-10 w-10 place-items-center rounded-lg bg-sky-500 text-white"><Activity size={20} aria-hidden="true" /></span><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-600">Pixel Eye</p><p className="font-bold text-slate-900">Healthcare CMS</p></div></div>
+          <div className="mb-8 flex items-center gap-3 lg:hidden"><span className="flex h-10 w-[116px] items-center rounded-lg border border-slate-200 bg-white px-2"><img src="/assets/pixel-eye-logo.png" alt="Pixel Eye" className="h-auto w-full" /></span><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-600">Pixel Eye</p><p className="font-bold text-slate-900">Eye Care CMS</p></div></div>
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
             <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-600">Protected portal</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Welcome back</h2><p className="mt-2 text-sm leading-6 text-slate-500">Sign in with your administrator credentials to continue.</p></div>
             <form className="mt-7 space-y-5" onSubmit={handleSubmit} noValidate>

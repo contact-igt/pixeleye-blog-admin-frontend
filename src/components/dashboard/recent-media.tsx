@@ -28,7 +28,7 @@ export function RecentMedia({ media, loading, error, onRetry }: RecentMediaProps
             <ImageIcon size={17} className="text-emerald-600" />
             Recent Media Uploads
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5">Quick access to recent healthcare media assets</p>
+          <p className="text-xs text-slate-500 mt-0.5">Quick access to recent eye-care media assets</p>
         </div>
         <Link href="/media">
           <Button variant="outline" size="sm">

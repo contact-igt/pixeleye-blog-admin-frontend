@@ -280,7 +280,7 @@ export default function CustomTemplateBuilder({
       <ConfirmationDialog
         isOpen={showConfirmReset}
         title="Reset layout?"
-        message="This will discard your current layout configuration and reload the default healthcare sample template config. This action can be undone."
+        message="This will discard your current layout configuration and reload the default eye-care sample template config. This action can be undone."
         onClose={() => setShowConfirmReset(false)}
         onConfirm={() => {
           dispatch({ type: 'reset_sample', sampleConfig: sampleFrontendCustomTemplateConfig });

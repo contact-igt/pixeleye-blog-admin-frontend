@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, ChevronDown, ChevronRight, LogOut, Menu, ShieldCheck, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, LogOut, Menu, ShieldCheck, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -78,9 +78,9 @@ export function AdminShell({ children }: Readonly<{ children: React.ReactNode }>
 
       <aside id="admin-navigation" aria-label="Admin sidebar" className={`fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-slate-800 bg-slate-950 text-slate-100 shadow-xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex h-16 items-center justify-between border-b border-slate-800 px-5">
-          <Link href="/dashboard" className="focus-ring flex items-center gap-3 rounded-lg">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-sky-500 text-white"><Activity size={18} aria-hidden="true" /></span>
-            <span><span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-sky-400">Pixel Eye</span><span className="block text-sm font-bold text-white">Healthcare CMS</span></span>
+          <Link href="/dashboard" className="focus-ring flex items-center gap-2 rounded-lg">
+            <span className="flex h-9 w-24 shrink-0 items-center rounded-lg bg-white px-2"><img src="/assets/pixel-eye-logo.png" alt="Pixel Eye" className="h-auto w-full" /></span>
+            <span><span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-sky-400">Pixel Eye</span><span className="block whitespace-nowrap text-sm font-bold text-white">Eye Care CMS</span></span>
           </Link>
           <button type="button" className="focus-ring rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Close menu"><X size={18} aria-hidden="true" /></button>
         </div>

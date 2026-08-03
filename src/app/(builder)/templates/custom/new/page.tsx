@@ -191,7 +191,7 @@ export default function NewCustomTemplateSetupPage() {
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Healthcare article layout with a main reading column and supporting sidebar."
+                placeholder="Eye-care article layout with a main reading column and supporting sidebar."
                 maxLength={2000}
                 rows={3}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none"
@@ -259,7 +259,7 @@ export default function NewCustomTemplateSetupPage() {
                   </div>
                 </div>
                 <span className="font-semibold text-slate-900 text-sm">Sample Layout</span>
-                <span className="text-xs text-slate-500 mt-1">Pre-built healthcare</span>
+                <span className="text-xs text-slate-500 mt-1">Pre-built eye care</span>
               </button>
 
             </div>
