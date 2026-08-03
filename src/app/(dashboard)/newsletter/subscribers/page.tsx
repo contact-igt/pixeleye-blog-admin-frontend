@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,36 +13,73 @@ import { newsletterService, type SubscriberStatsResponse } from '@/services/news
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/contexts/toast-context';
 import { getSafeApiErrorMessage } from '@/utils/api-error';
+import type { AdminSubscriber, SubscriberExportFilters, SubscriberStatus } from '@/types/newsletter';
 
-interface Subscriber {
-  id: string;
-  email: string;
-  status: 'pending' | 'subscribed' | 'unsubscribed';
-  source: string;
-  consentVersion: string;
-  consentAt: string;
-  verificationSentAt: string | null;
-  verifiedAt: string | null;
-  unsubscribedAt: string | null;
-  resubscriptionRequestedAt?: string | null;
-  createdAt: string;
+type SubscriberFilterStatus = SubscriberStatus | 'all';
+
+function getActiveSubscriberFilters(
+  search: string,
+  status: SubscriberFilterStatus
+): SubscriberExportFilters {
+  const normalizedSearch = search.trim();
+
+  return {
+    ...(normalizedSearch ? { search: normalizedSearch } : {}),
+    ...(status !== 'all' ? { status } : {})
+  };
+}
+
+function buildFallbackCsvFilename(): string {
+  return 'subscribers_' + new Date().toISOString().split('T')[0] + '.csv';
+}
+
+function parseContentDispositionFilename(contentDisposition: string | null): string | null {
+  if (!contentDisposition) return null;
+
+  const encodedMatch = contentDisposition.match(/filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i);
+  if (encodedMatch?.[1]) {
+    const encodedFilename = encodedMatch[1].trim().replace(/^"|"$/g, '');
+    try {
+      return decodeURIComponent(encodedFilename);
+    } catch {
+      return encodedFilename;
+    }
+  }
+
+  const filenameMatch = contentDisposition.match(/filename\s*=\s*(?:"([^"]+)"|([^;]+))/i);
+  return filenameMatch?.[1]?.trim() || filenameMatch?.[2]?.trim() || null;
+}
+
+function sanitizeCsvFilename(filename: string | null): string {
+  const fallback = buildFallbackCsvFilename();
+  if (!filename) return fallback;
+
+  const leafName = filename.replace(/\\/g, '/').split('/').pop() || '';
+  const sanitized = leafName
+    .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .trim();
+
+  if (!sanitized) return fallback;
+  return sanitized.toLowerCase().endsWith('.csv') ? sanitized : sanitized + '.csv';
 }
 
 export default function SubscribersPage() {
-  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [subscribers, setSubscribers] = useState<AdminSubscriber[]>([]);
   const [stats, setStats] = useState<SubscriberStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState<SubscriberFilterStatus>('all');
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const exportInProgress = useRef(false);
 
   // Modal state
-  const [selectedSubscriber, setSelectedSubscriber] = useState<Subscriber | null>(null);
+  const [selectedSubscriber, setSelectedSubscriber] = useState<AdminSubscriber | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
@@ -75,8 +112,9 @@ export default function SubscribersPage() {
     try {
       setLoading(true);
       setError('');
+      const filters = getActiveSubscriberFilters(search, status);
       const [response, statsResponse] = await Promise.all([
-        newsletterService.getSubscribers(page, limit, search, status),
+        newsletterService.getSubscribers(page, limit, filters.search || '', filters.status || ''),
         newsletterService.getSubscriberStats()
       ]);
       setSubscribers(response.items);
@@ -95,21 +133,36 @@ export default function SubscribersPage() {
   }, [loadData]);
 
   const handleExport = async () => {
+    if (exportInProgress.current) return;
+
+    exportInProgress.current = true;
+    setExporting(true);
+
     try {
-      setExporting(true);
-      const blob = await newsletterService.exportSubscribers() as any;
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `subscribers_${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const result = await newsletterService.exportSubscribers(
+        getActiveSubscriberFilters(search, status)
+      );
+      const contentType = result.contentType || result.blob.type;
+      if (!contentType.toLowerCase().includes('text/csv')) {
+        throw new Error('Unexpected export response type');
+      }
+
+      const filename = sanitizeCsvFilename(
+        parseContentDispositionFilename(result.contentDisposition)
+      );
+      const url = window.URL.createObjectURL(result.blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
       showToast({ type: 'success', message: 'Export successful.' });
     } catch (err) {
       showToast({ type: 'error', message: getSafeApiErrorMessage(err) });
     } finally {
+      exportInProgress.current = false;
       setExporting(false);
     }
   };
@@ -296,16 +349,16 @@ export default function SubscribersPage() {
           </div>
           <select
             value={status}
-            onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+            onChange={(e) => { setStatus(e.target.value as SubscriberFilterStatus); setPage(1); }}
             className="px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-sm"
           >
-            <option value="">All statuses</option>
+            <option value="all">All statuses</option>
             <option value="pending">Pending</option>
             <option value="subscribed">Subscribed</option>
             <option value="unsubscribed">Unsubscribed</option>
           </select>
-          {(search || status) && (
-            <Button onClick={() => { setSearch(''); setStatus(''); setPage(1); }} variant="ghost" className="text-sm">
+          {(search || status !== 'all') && (
+            <Button onClick={() => { setSearch(''); setStatus('all'); setPage(1); }} variant="ghost" className="text-sm">
               Clear filters
             </Button>
           )}

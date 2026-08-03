@@ -14,6 +14,31 @@ export interface Subscriber {
   resubscription_requested_at: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
+  anonymized_at?: string | null;
+}
+
+export interface AdminSubscriber {
+  id: string;
+  email: string;
+  status: SubscriberStatus;
+  source: string;
+  consentVersion: string;
+  consentAt: string | null;
+  verificationSentAt: string | null;
+  verifiedAt: string | null;
+  unsubscribedAt: string | null;
+  resubscriptionRequestedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+  anonymizedAt?: string | null;
+}
+
+export interface SubscriberExportFilters {
+  search?: string;
+  status?: SubscriberStatus;
+  source?: string;
 }
 
 export interface AdminCreateSubscriberPayload {

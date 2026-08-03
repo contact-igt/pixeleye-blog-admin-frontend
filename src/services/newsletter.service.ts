@@ -1,20 +1,10 @@
-import { apiRequest, type ApiRequestOptions } from './api-client';
+import { apiRequest, apiRequestFile } from './api-client';
+import type { ApiFileResponse } from './api-client';
 import type { ApiResponse } from '@/types/auth';
+import type { AdminSubscriber, Subscriber as ApiSubscriber, SubscriberExportFilters, SubscriberStatus } from '@/types/newsletter';
 
-export interface SubscriberListResponse {
-  items: Array<{
-    id: string;
-    email: string;
-    status: 'pending' | 'subscribed' | 'unsubscribed';
-    source: string;
-    consentVersion: string;
-    consentAt: string;
-    verificationSentAt: string | null;
-    verifiedAt: string | null;
-    unsubscribedAt: string | null;
-    resubscriptionRequestedAt?: string | null;
-    createdAt: string;
-  }>;
+interface RawSubscriberListResponse {
+  items: ApiSubscriber[];
   pagination: {
     page: number;
     limit: number;
@@ -23,6 +13,11 @@ export interface SubscriberListResponse {
     has_next_page: boolean;
     has_previous_page: boolean;
   };
+}
+
+export interface SubscriberListResponse {
+  items: AdminSubscriber[];
+  pagination: RawSubscriberListResponse['pagination'];
 }
 
 export interface SubscriberStatsResponse {
@@ -106,6 +101,7 @@ export interface QueuePreviewResponse {
   can_queue: boolean;
   blocking_reason: string | null;
 }
+
 export interface CampaignListResponse {
   items: Array<{
     id: string;
@@ -152,39 +148,69 @@ export interface FeedbackSummaryResponse {
   }>;
 }
 
+
+function normalizeSubscriber(subscriber: ApiSubscriber): AdminSubscriber {
+  return {
+    id: subscriber.id,
+    email: subscriber.email,
+    status: subscriber.status,
+    source: subscriber.source ?? '',
+    consentVersion: subscriber.consent_version ?? '',
+    consentAt: subscriber.consent_at,
+    verificationSentAt: subscriber.verification_sent_at,
+    verifiedAt: subscriber.verified_at,
+    unsubscribedAt: subscriber.unsubscribed_at,
+    resubscriptionRequestedAt: subscriber.resubscription_requested_at,
+    createdAt: subscriber.created_at,
+    updatedAt: subscriber.updated_at,
+  };
+}
+
 export const newsletterService = {
-  // Subscribers
-  async getSubscribers(page = 1, limit = 20, search = '', status = '') {
+  async getSubscribers(page = 1, limit = 20, search = '', status: SubscriberStatus | '' = ''): Promise<SubscriberListResponse> {
     const params = new URLSearchParams({
       page: String(page),
       limit: String(limit),
       ...(search && { search }),
-      ...(status && { status })
+      ...(status && { status }),
     });
-    const response = await apiRequest<ApiResponse<SubscriberListResponse>>(
+    const response = await apiRequest<ApiResponse<RawSubscriberListResponse>>(
       `/admin/newsletter/subscribers?${params}`,
-      { method: 'GET' }
+      { method: 'GET' },
     );
-    return response.data;
+
+    return {
+      items: response.data.items.map(normalizeSubscriber),
+      pagination: response.data.pagination,
+    };
   },
 
-  async getSubscriber(id: string) {
-    const response = await apiRequest<ApiResponse<any>>(`/admin/newsletter/subscribers/${id}`, {
-      method: 'GET'
+  async getSubscriber(id: string): Promise<AdminSubscriber> {
+    const response = await apiRequest<ApiResponse<ApiSubscriber>>(`/admin/newsletter/subscribers/${id}`, {
+      method: 'GET',
     });
-    return response.data;
+    return normalizeSubscriber(response.data);
   },
 
   async getSubscriberStats() {
     const response = await apiRequest<ApiResponse<SubscriberStatsResponse>>('/admin/newsletter/subscribers/stats', {
-      method: 'GET'
+      method: 'GET',
     });
     return response.data;
   },
 
-  async exportSubscribers() {
-    return apiRequest('/admin/newsletter/subscribers/export', {
-      method: 'GET'
+  async exportSubscribers(filters: SubscriberExportFilters = {}): Promise<ApiFileResponse> {
+    const search = filters.search?.trim();
+    const source = filters.source?.trim();
+    const params = new URLSearchParams({
+      ...(search ? { search } : {}),
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(source ? { source } : {}),
+    });
+    const query = params.toString();
+    return apiRequestFile(`/admin/newsletter/subscribers/export${query ? `?${query}` : ''}`, {
+      method: 'GET',
+      headers: { Accept: 'text/csv' },
     });
   },
 
@@ -194,8 +220,8 @@ export const newsletterService = {
       body: JSON.stringify({
         email: payload.email,
         source: payload.source || 'admin_manual',
-        ...(payload.consent_note && { consent_note: payload.consent_note })
-      })
+        ...(payload.consent_note && { consent_note: payload.consent_note }),
+      }),
     });
     return response.data;
   },
@@ -203,7 +229,7 @@ export const newsletterService = {
   async resendSubscriberVerification(subscriberId: string) {
     const response = await apiRequest<ApiResponse<any>>(
       `/admin/newsletter/subscribers/${subscriberId}/resend-verification`,
-      { method: 'POST', body: JSON.stringify({}) }
+      { method: 'POST', body: JSON.stringify({}) },
     );
     return response.data;
   },
@@ -226,7 +252,6 @@ export const newsletterService = {
     return response.data;
   },
 
-  // Campaigns
   async getCampaignStats() {
     const response = await apiRequest<ApiResponse<CampaignStatsResponse>>('/admin/newsletter/campaigns/stats', {
       method: 'GET'
@@ -312,6 +337,7 @@ export const newsletterService = {
     const response = await apiRequest<ApiResponse<QueuePreviewResponse>>(`/admin/newsletter/campaigns/${id}/queue-preview`, { method: 'GET' });
     return response.data;
   },
+
   async queueCampaign(id: string) {
     const response = await apiRequest<ApiResponse<any>>(
       `/admin/newsletter/campaigns/${id}/queue`,
@@ -355,7 +381,6 @@ export const newsletterService = {
     return response.data;
   },
 
-  // Feedback
   async getFeedbackSummary(blogId: string, versionId?: string) {
     const params = new URLSearchParams({
       ...(versionId && { version: versionId })
@@ -367,3 +392,4 @@ export const newsletterService = {
     return response.data;
   }
 };
+

@@ -2,6 +2,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CampaignDetailPage from './page';
+import { ToastProvider } from '@/contexts/toast-context';
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -32,6 +33,14 @@ vi.mock('@/services/newsletter.service', () => ({
     ,pauseCampaign: mocks.pauseCampaign, resumeCampaign: mocks.resumeCampaign, deleteCampaign: mocks.deleteCampaign
   }
 }));
+
+function renderPage() {
+  return render(
+    <ToastProvider>
+      <CampaignDetailPage />
+    </ToastProvider>
+  );
+}
 
 function campaign(status: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -159,7 +168,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
       .mockResolvedValueOnce(campaign('queued'))
       .mockResolvedValueOnce(campaign('completed'));
 
-    render(<CampaignDetailPage />);
+    renderPage();
 
     expect(await screen.findByText(/Worker is active and waiting/)).toBeInTheDocument();
     await waitFor(() => expect(intervalCallback).toBeTypeOf('function'));
@@ -178,7 +187,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
     mocks.getCampaign.mockResolvedValue(campaign('queued'));
     mocks.getWorkerHealth.mockResolvedValue(workerHealth('offline', 'ready'));
 
-    render(<CampaignDetailPage />);
+    renderPage();
 
     expect(await screen.findByText(/No Newsletter Worker heartbeat/)).toBeInTheDocument();
     expect(await screen.findByText('Offline')).toBeInTheDocument();
@@ -189,7 +198,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
     mocks.getCampaign.mockResolvedValue(campaign('queued'));
     mocks.getWorkerHealth.mockResolvedValue(workerHealth('active', 'ready'));
 
-    render(<CampaignDetailPage />);
+    renderPage();
 
     expect(await screen.findByText('Active')).toBeInTheDocument();
     expect(screen.getByText('Idle')).toBeInTheDocument();
@@ -198,7 +207,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
   it('displays a stale heartbeat without conflating it with claim failure', async () => {
     mocks.getCampaign.mockResolvedValue(campaign('queued'));
     mocks.getWorkerHealth.mockResolvedValue(workerHealth('stale', 'ready', 'idle'));
-    render(<CampaignDetailPage />);
+    renderPage();
     expect(await screen.findByText('Stale')).toBeInTheDocument();
     expect(screen.getByText(/has stopped reporting/)).toBeInTheDocument();
     expect(screen.getByText('Idle')).toBeInTheDocument();
@@ -207,7 +216,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
   it('does not display Offline after one temporary health request failure', async () => {
     mocks.getCampaign.mockResolvedValue(campaign('queued'));
     mocks.getWorkerHealth.mockRejectedValueOnce(new Error('temporary health failure'));
-    render(<CampaignDetailPage />);
+    renderPage();
     expect(await screen.findByText('Health check failed')).toBeInTheDocument();
     expect(screen.queryByText('Offline')).not.toBeInTheDocument();
   });
@@ -215,7 +224,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
   it('shows claim failure separately from a degraded Worker', async () => {
     mocks.getCampaign.mockResolvedValue(campaign('queued'));
     mocks.getWorkerHealth.mockResolvedValue(workerHealth('degraded', 'ready', 'claim_failed'));
-    render(<CampaignDetailPage />);
+    renderPage();
     expect(await screen.findByText('Degraded')).toBeInTheDocument();
     expect(screen.getByText('Claim Failed')).toBeInTheDocument();
     expect(screen.getByText(/latest delivery claim failed/)).toBeInTheDocument();
@@ -225,7 +234,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
     mocks.getCampaign.mockResolvedValue(campaign('queued'));
     mocks.getWorkerHealth.mockResolvedValue(workerHealth('offline', 'auth_failed'));
 
-    render(<CampaignDetailPage />);
+    renderPage();
 
     expect(await screen.findByText('Authentication Failed')).toBeInTheDocument();
     expect(screen.getByText('Offline')).toBeInTheDocument();
@@ -238,7 +247,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
       .mockResolvedValueOnce(campaign('queued'))
       .mockResolvedValueOnce(campaign('queued'));
 
-    render(<CampaignDetailPage />);
+    renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Queue Campaign' }));
     await user.click(screen.getAllByRole('button', { name: 'Queue Campaign' }).at(-1)!);
@@ -257,7 +266,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
     mocks.getCampaign
       .mockResolvedValueOnce(campaign('sending'))
       .mockResolvedValueOnce(campaign('sending'));
-    render(<CampaignDetailPage />);
+    renderPage();
     await waitFor(() => expect(intervalCallback).toBeTypeOf('function'));
     await act(async () => { await intervalCallback?.(); });
     expect(mocks.getWorkerHealth).toHaveBeenCalledTimes(2);
@@ -266,25 +275,25 @@ describe('CampaignDetailPage delivery polling and health', () => {
 
   it('does not start polling for a terminal campaign', async () => {
     mocks.getCampaign.mockResolvedValue(campaign('completed'));
-    render(<CampaignDetailPage />);
+    renderPage();
     expect(await screen.findByText(/processed successfully/)).toBeInTheDocument();
     expect(intervalCallback).toBeUndefined();
   });
 
   it('shows Pause for queued and sending Campaigns, and Resume for paused Campaigns', async () => {
     mocks.getCampaign.mockResolvedValue(campaign('queued'));
-    const view = render(<CampaignDetailPage />);
+    const view = renderPage();
     expect(await screen.findByRole('button', { name: 'Pause Campaign' })).toBeInTheDocument();
     view.unmount();
     mocks.getCampaign.mockResolvedValue(campaign('paused'));
-    render(<CampaignDetailPage />);
+    renderPage();
     expect(await screen.findByRole('button', { name: 'Resume Campaign' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pause Campaign' })).not.toBeInTheDocument();
   });
 
   it('shows Delete but no Pause or Resume for completed Campaigns', async () => {
     mocks.getCampaign.mockResolvedValue(campaign('completed'));
-    render(<CampaignDetailPage />);
+    renderPage();
     expect(await screen.findByRole('button', { name: 'Delete Campaign' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pause Campaign' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Resume Campaign' })).not.toBeInTheDocument();
@@ -295,13 +304,35 @@ describe('CampaignDetailPage delivery polling and health', () => {
     mocks.getCampaign.mockResolvedValue(campaign('queued'));
     let finish!: (value: unknown) => void;
     mocks.pauseCampaign.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
-    render(<CampaignDetailPage />);
+    renderPage();
     await user.click(await screen.findByRole('button', { name: 'Pause Campaign' }));
     const confirmButton = screen.getAllByRole('button', { name: 'Pause Campaign' }).at(-1)!;
     await user.click(confirmButton);
     await user.click(confirmButton);
     expect(mocks.pauseCampaign).toHaveBeenCalledTimes(1);
     finish(campaign('paused'));
+  });
+
+  it('refreshes stale campaign state after a resume conflict', async () => {
+    const user = userEvent.setup();
+    mocks.getCampaign
+      .mockResolvedValueOnce(campaign('paused'))
+      .mockResolvedValueOnce(campaign('completed'));
+    mocks.resumeCampaign.mockRejectedValue({
+      name: 'ApiClientError',
+      status: 409,
+      message: 'Only paused Campaigns can be resumed.',
+      data: { code: 'CAMPAIGN_INVALID_RESUME_STATUS' }
+    });
+
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Resume Campaign' }));
+    await user.click(screen.getAllByRole('button', { name: 'Resume Campaign' }).at(-1)!);
+
+    expect(await screen.findByText('Only paused Campaigns can be resumed.')).toBeInTheDocument();
+    await waitFor(() => expect(mocks.getCampaign).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('button', { name: 'Delete Campaign' })).toBeInTheDocument();
   });
 
   it('includes uncertain deliveries in completion while excluding them from success', async () => {
@@ -317,7 +348,7 @@ describe('CampaignDetailPage delivery polling and health', () => {
       uncertain: 2
     }));
 
-    render(<CampaignDetailPage />);
+    renderPage();
 
     expect(await screen.findByText('100%')).toBeInTheDocument();
     expect(screen.getByText(/10 completed out of 10 total recipients; 6 sent successfully \(60% success rate\)/)).toBeInTheDocument();
