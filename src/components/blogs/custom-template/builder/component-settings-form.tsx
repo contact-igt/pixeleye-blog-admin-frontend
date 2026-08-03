@@ -3,31 +3,17 @@
 import React from 'react';
 import { getComponentDefinition } from '../component-registry';
 import { Select } from '@/components/ui/select';
+import type { BuilderAction } from './builder-reducer';
 
-import type { CustomTemplateSection, CustomTemplateComponentInstance } from '../custom-template.types';
+import type { CustomTemplateSection } from '../custom-template.types';
 
 interface ComponentSettingsFormProps {
   sectionId: string;
   slotId: string;
   componentId: string;
   sections: CustomTemplateSection[];
-  dispatch: React.Dispatch<any>;
+  dispatch: React.Dispatch<BuilderAction>;
 }
-
-// Sample blocks available from clinical document
-const compatibleBlockIdsMap: Record<string, { label: string; value: string }[]> = {
-  hero: [{ label: 'Hero Block Metadata', value: 'hero' }],
-  rich_article_content: [{ label: 'Rich Editor Output', value: 'article_content' }],
-  key_takeaways: [{ label: 'Key takeaways checklist', value: 'key_takeaways' }],
-  image_comparison: [{ label: 'Visual before/after comparisons', value: 'image_comparison' }],
-  numbered_list: [{ label: 'Safety procedures checklist', value: 'numbered_list' }],
-  expert_quote: [{ label: 'Clinician quote credentials', value: 'expert_quote' }],
-  medical_cta: [{ label: 'Appointment booking actions', value: 'medical_cta' }],
-  faq: [{ label: 'Accordion Q&A data', value: 'faq' }],
-  feedback: [{ label: 'Feedback voting widget', value: 'feedback' }],
-  share: [{ label: 'Share buttons metadata', value: 'share' }],
-  medical_disclaimer: [{ label: 'Medical safety disclaimer', value: 'disclaimer' }]
-};
 
 export default function ComponentSettingsForm({
   sectionId,
@@ -44,7 +30,7 @@ export default function ComponentSettingsForm({
 
   const definition = getComponentDefinition(component.componentKey);
 
-  const handleUpdate = (updates: Partial<Omit<CustomTemplateComponentInstance, 'id' | 'componentKey'>>) => {
+  const handleUpdate = (updates: Extract<BuilderAction, { type: 'update_component' }>['updates']) => {
     dispatch({
       type: 'update_component',
       sectionId,
@@ -55,7 +41,7 @@ export default function ComponentSettingsForm({
   };
 
   const renderSettingsFields = () => {
-    const s = component.settings as any;
+    const s = component.settings as unknown as Record<string, string | undefined>;
     switch (component.componentKey) {
       case 'hero':
         return (
@@ -402,7 +388,6 @@ export default function ComponentSettingsForm({
     }
   };
 
-  const blockOptions = compatibleBlockIdsMap[component.componentKey] || [];
 
   return (
     <div className="space-y-6 bg-white border border-slate-200 shadow-xs rounded-xl p-5 select-none">
@@ -422,15 +407,6 @@ export default function ComponentSettingsForm({
           onChange={(e) => handleUpdate({ enabled: e.target.value === 'true' })}
         />
 
-        {/* Render block selection dropdown helper if content model */}
-        {definition.category === 'content' && blockOptions.length > 0 && (
-          <Select
-            label="Required Content Block ID"
-            options={blockOptions}
-            value={component.blockId || ''}
-            onChange={(e) => handleUpdate({ blockId: e.target.value })}
-          />
-        )}
 
         {renderSettingsFields()}
       </div>

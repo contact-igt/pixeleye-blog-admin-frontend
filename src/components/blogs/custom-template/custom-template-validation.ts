@@ -6,6 +6,11 @@ import {
 } from './custom-template.types';
 import { getComponentDefinition, isRegisteredComponentKey } from './component-registry';
 import type { BlogBlocksDocument } from '@/types/blog-blocks';
+import {
+  normalizeCustomTemplateSettings,
+  PAGE_SETTING_OPTIONS,
+  SECTION_SETTING_OPTIONS
+} from './custom-template-settings';
 
 export interface FrontendValidationError {
   path: string;
@@ -15,19 +20,13 @@ export interface FrontendValidationError {
 // Mirrors backend/src/modules/blogs/custom-templates/custom-template.schema.ts exactly so a
 // layout accepted here is guaranteed to pass backend validation too.
 
-const KNOWN_SECTION_LAYOUTS = ['full_width', 'content_sidebar', 'two_column', 'three_column'] as const;
-const KNOWN_RESPONSIVE_STRATEGIES = [
-  'stack_on_mobile',
-  'sidebar_below_on_tablet',
-  'equal_columns',
-  'main_sidebar',
-  'three_to_two_to_one'
-] as const;
-const KNOWN_SECTION_BACKGROUNDS = ['white', 'slate', 'sky'] as const;
-const KNOWN_CONTENT_WIDTHS = ['narrow', 'standard', 'wide', 'full'] as const;
-const KNOWN_PAGE_BACKGROUNDS = ['white', 'soft_gray', 'brand_tint'] as const;
-const KNOWN_SECTION_SPACINGS = ['compact', 'normal', 'spacious'] as const;
-const KNOWN_TYPOGRAPHY_VARIANTS = ['editorial', 'modern', 'clinical'] as const;
+const KNOWN_SECTION_LAYOUTS = SECTION_SETTING_OPTIONS.layout.map((option) => option.value);
+const KNOWN_RESPONSIVE_STRATEGIES = SECTION_SETTING_OPTIONS.responsiveStrategy.map((option) => option.value);
+const KNOWN_SECTION_BACKGROUNDS = SECTION_SETTING_OPTIONS.backgroundStyle.map((option) => option.value);
+const KNOWN_CONTENT_WIDTHS = PAGE_SETTING_OPTIONS.contentWidth.map((option) => option.value);
+const KNOWN_PAGE_BACKGROUNDS = PAGE_SETTING_OPTIONS.background.map((option) => option.value);
+const KNOWN_SECTION_SPACINGS = PAGE_SETTING_OPTIONS.spacing.map((option) => option.value);
+const KNOWN_TYPOGRAPHY_VARIANTS = PAGE_SETTING_OPTIONS.typography.map((option) => option.value);
 
 const EXPECTED_SLOT_COUNTS: Record<string, number> = {
   full_width: 1,
@@ -44,6 +43,7 @@ const MAX_SLOT_NAME_LENGTH = 64;
 const MAX_BLOCK_ID_LENGTH = 64;
 const MAX_URL_LENGTH = 2048;
 const SAFE_URL_PATTERN = /^(https?:\/\/|tel:|mailto:|\/)/i;
+export const SAFE_BLOCK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -203,7 +203,7 @@ export function validateFrontendCustomTemplateLayout(
     return { valid: false, config: null, errors: [{ path: 'root', message: 'Configuration must be an object.' }] };
   }
 
-  const configObj = rawConfig as Partial<CustomTemplateLayoutConfigV1> & Record<string, unknown>;
+  const configObj = normalizeCustomTemplateSettings(rawConfig) as Partial<CustomTemplateLayoutConfigV1> & Record<string, unknown>;
   if (configObj.schemaVersion !== CUSTOM_TEMPLATE_SCHEMA_VERSION) {
     return {
       valid: false,
@@ -248,6 +248,7 @@ export function validateFrontendCustomTemplateLayout(
   const sectionIds = new Set<string>();
   const slotIds = new Set<string>();
   const componentIds = new Set<string>();
+  const blockIdPaths = new Map<string, string>();
   let totalComponents = 0;
 
   configObj.sections.forEach((section: unknown, secIdx: number) => {
@@ -259,7 +260,7 @@ export function validateFrontendCustomTemplateLayout(
 
     checkNoUnknownKeys(
       section,
-      ['id', 'layout', 'responsiveStrategy', 'enabled', 'background', 'slots'],
+      ['id', 'layout', 'responsiveStrategy', 'enabled', 'background', 'settings', 'slots'],
       secPath,
       'Section',
       errors
@@ -277,6 +278,21 @@ export function validateFrontendCustomTemplateLayout(
     checkBoolean(section.enabled, `${secPath}.enabled`, 'Section enabled', errors);
     if (section.background !== undefined) {
       checkEnum(section.background, KNOWN_SECTION_BACKGROUNDS, `${secPath}.background`, 'Section background', errors);
+    }
+
+    if (section.settings !== undefined) {
+      if (!isPlainObject(section.settings)) {
+        errors.push({ path: `${secPath}.settings`, message: 'settings must be an object.' });
+      } else {
+        const allowedWidths = [...KNOWN_CONTENT_WIDTHS, 'inherit'];
+        const allowedBackgrounds = [...KNOWN_SECTION_BACKGROUNDS, 'inherit'];
+        const allowedSpacings = [...KNOWN_SECTION_SPACINGS, 'inherit'];
+        checkNoUnknownKeys(section.settings, ['width', 'backgroundStyle', 'paddingTop', 'paddingBottom'], `${secPath}.settings`, 'Section settings', errors);
+        if (section.settings.width !== undefined) checkEnum(section.settings.width, allowedWidths as string[], `${secPath}.settings.width`, 'settings.width', errors);
+        if (section.settings.backgroundStyle !== undefined) checkEnum(section.settings.backgroundStyle, allowedBackgrounds as string[], `${secPath}.settings.backgroundStyle`, 'settings.backgroundStyle', errors);
+        if (section.settings.paddingTop !== undefined) checkEnum(section.settings.paddingTop, allowedSpacings as string[], `${secPath}.settings.paddingTop`, 'settings.paddingTop', errors);
+        if (section.settings.paddingBottom !== undefined) checkEnum(section.settings.paddingBottom, allowedSpacings as string[], `${secPath}.settings.paddingBottom`, 'settings.paddingBottom', errors);
+      }
     }
 
     if (!Array.isArray(section.slots)) {
@@ -376,15 +392,38 @@ export function validateFrontendCustomTemplateLayout(
           });
         }
 
-        // Block-reference rules
-        if (def.category === 'content') {
+        // Block-reference rules. IDs are generated by the builder and are immutable in the settings panel.
+        if (def.requiresBlockId) {
           checkText(comp.blockId, MAX_BLOCK_ID_LENGTH, `${compPath}.blockId`, 'blockId', errors);
-          if (!comp.blockId) {
+          const blockId = typeof comp.blockId === 'string' ? comp.blockId : '';
+          if (!blockId) {
             errors.push({ path: `${compPath}.blockId`, message: `Content component '${comp.componentKey}' requires a blockId.` });
-          } else if (blocksDoc && def.requiredBlockKey !== 'article_content') {
-            const blockExists = Boolean(blocksDoc.custom_instances?.[comp.blockId]);
-            if (!blockExists) {
-              errors.push({ path: `${compPath}.blockId`, message: `Referenced block '${comp.blockId}' not found in blocks_json.custom_instances.` });
+          } else {
+            if (!SAFE_BLOCK_ID_PATTERN.test(blockId)) {
+              errors.push({ path: `${compPath}.blockId`, message: 'blockId may contain only letters, numbers, hyphens, and underscores.' });
+            }
+            if (comp.componentKey === 'rich_article_content' && blockId !== 'article_content') {
+              errors.push({ path: `${compPath}.blockId`, message: "Rich Article Content must use the 'article_content' blockId." });
+            }
+            if (comp.componentKey !== 'rich_article_content' && blockId === 'article_content') {
+              errors.push({ path: `${compPath}.blockId`, message: "The 'article_content' blockId is reserved for Rich Article Content." });
+            }
+            if (blockId !== 'article_content') {
+              const firstPath = blockIdPaths.get(blockId);
+              if (firstPath) {
+                errors.push({ path: `${compPath}.blockId`, message: `Duplicate blockId '${blockId}'. First used at ${firstPath}.` });
+              } else {
+                blockIdPaths.set(blockId, `${compPath}.blockId`);
+              }
+            }
+            const placementEnabled = section.enabled !== false && comp.enabled !== false;
+            if (blocksDoc && placementEnabled && comp.componentKey !== 'rich_article_content') {
+              const instance = blocksDoc.custom_instances?.[blockId];
+              if (!instance) {
+                errors.push({ path: `${compPath}.blockId`, message: `Referenced block '${blockId}' not found in blocks_json.custom_instances.` });
+              } else if (instance.componentKey !== comp.componentKey) {
+                errors.push({ path: `${compPath}.blockId`, message: `Referenced block '${blockId}' contains '${instance.componentKey}', not '${comp.componentKey}'.` });
+              }
             }
           }
         } else if (comp.blockId !== undefined && comp.blockId !== null) {

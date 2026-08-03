@@ -10,20 +10,23 @@ import { Input, Textarea } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { useAuth } from '@/components/auth/auth-provider';
-import { createBlog, getPublishChecklist, publishBlog, unpublishBlog, updateBlog } from '@/services/blog.service';
+import { createBlog, getPublishChecklist, publishBlog, unpublishBlog, updateBlog, upgradeBlogCustomTemplate } from '@/services/blog.service';
 import { getCustomTemplate } from '@/services/custom-templates.service';
 import { ApiClientError } from '@/services/api-client';
 import type { BlogDetail, BlogPayload, BlogTemplateKey, PublishChecklist, TipTapDocument } from '@/types/blog';
 import type { MediaAsset } from '@/types/media';
-import { normalizeBlogBlocks, type BlogBlocksDocument } from '@/types/blog-blocks';
+import type { CustomTemplateDetail, CustomTemplateSummary } from '@/types/custom-templates';
+import { normalizeBlogBlocks, template2SidebarFieldErrors, type BlogBlocksDocument } from '@/types/blog-blocks';
 import { RichTextEditor } from './rich-text-editor';
 import { FeaturedMediaPicker } from './featured-media-picker';
 import { ConfirmDialog, PreviewDialog } from './blog-dialogs';
 import { TemplateSelector } from './templates/template-selector';
 import { CustomTemplateSelector } from './templates/custom-template-selector';
 import { BlogBlockEditor } from './blocks/blog-block-editor';
+import { TemplateTwoSidebarEditor } from './blocks/template-two-sidebar-editor';
 import { CustomTemplateBlockEditor } from './custom-template/custom-template-block-editor';
 import { validateFrontendCustomTemplateLayout } from './custom-template/custom-template-validation';
+import { reconcileCustomTemplateBlocks } from './custom-template/custom-template-reconciliation';
 
 const emptyDoc: TipTapDocument = { type: 'doc', content: [{ type: 'paragraph' }] };
 
@@ -129,11 +132,22 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
   const leaveAction = useRef<() => void>(() => undefined);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [savedTemplateKey, setSavedTemplateKey] = useState<BlogTemplateKey>(initial.templateKey);
-  const [fetchedCustomTemplateConfig, setFetchedCustomTemplateConfig] = useState<unknown>(undefined);
+  const [fetchedCustomTemplateConfig, setFetchedCustomTemplateConfig] = useState<unknown>(() => draft?.template_key === 'custom_template' ? draft.template_config_json : undefined);
+  const [latestCustomTemplate, setLatestCustomTemplate] = useState<CustomTemplateDetail | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(
+    initial.templateKey === 'custom_template' && Boolean(initial.customTemplateId)
+  );
+  const [templateLoadError, setTemplateLoadError] = useState('');
+  const [templateLoadNonce, setTemplateLoadNonce] = useState(0);
+  const [pendingCustomTemplate, setPendingCustomTemplate] = useState<{ id: string; template: CustomTemplateSummary } | null>(null);
+  const [templateSwitchBusy, setTemplateSwitchBusy] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
 
   const dirty = JSON.stringify(form) !== snapshot;
   const templateSaved = current ? savedTemplateKey === form.templateKey : false;
-  const selectedTemplateVersion = draft?.template_key === form.templateKey ? draft.template_version : form.templateKey === 'template_1' ? 2 : 1;
+  const activeDraft = current?.draft_version ?? draft;
+  const selectedTemplateVersion = activeDraft?.template_key === form.templateKey ? activeDraft.template_version : form.templateKey === 'template_1' ? 2 : 1;
   const [customTemplateName, setCustomTemplateName] = useState('');
   const selectedTemplateName = form.templateKey === 'custom_template' ? (customTemplateName || 'Custom Template') : form.templateKey === 'template_2' ? 'Template 2' : 'Template 1';
   const templateInstructions = form.templateKey === 'custom_template'
@@ -153,30 +167,66 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
+  const frozenSelectionMatches = Boolean(
+    form.templateKey === 'custom_template' &&
+    form.customTemplateId &&
+    activeDraft?.template_key === 'custom_template' &&
+    String(activeDraft.custom_template_id) === String(form.customTemplateId) &&
+    activeDraft.template_config_json
+  );
+
   useEffect(() => {
-    if (form.templateKey === 'custom_template' && form.customTemplateId) {
-      if (current?.draft_version?.template_key === 'custom_template' && current.draft_version.template_config_json) {
-        setFetchedCustomTemplateConfig(current.draft_version.template_config_json);
-        return;
-      }
-      let cancelled = false;
-      getCustomTemplate(form.customTemplateId)
-        .then((detail) => {
-          const config = detail?.current_version_detail?.layout_config_json || (detail?.current_version as Record<string, unknown> | null)?.layout_config_json;
-          if (!cancelled && config) {
-            setFetchedCustomTemplateConfig(config);
-          }
-        })
-        .catch(() => {
-          // Ignore error in preview fetch fallback
+    if (form.templateKey !== 'custom_template' || !form.customTemplateId) return;
+
+    const selectedId = form.customTemplateId;
+    const draftMatches = activeDraft?.template_key === 'custom_template'
+      && String(activeDraft.custom_template_id) === String(selectedId)
+      && Boolean(activeDraft.template_config_json);
+    let cancelled = false;
+    getCustomTemplate(selectedId)
+      .then((detail) => {
+        if (cancelled) return;
+        setLatestCustomTemplate(detail);
+        setCustomTemplateName(detail.name);
+        const config = draftMatches ? activeDraft?.template_config_json : detail.current_version_detail?.layout_config_json;
+        const validated = validateFrontendCustomTemplateLayout(config);
+        if (!validated.valid || !validated.config) throw new Error('The selected Custom Template has an invalid current layout.');
+        setFetchedCustomTemplateConfig(validated.config);
+        setForm((old) => {
+          const reconciled = reconcileCustomTemplateBlocks(validated.config!, old.blocks, { keepOrphans: true });
+          return JSON.stringify(reconciled.document.custom_instances) === JSON.stringify(old.blocks.custom_instances)
+            ? old
+            : { ...old, blocks: reconciled.document };
         });
-      return () => {
-        cancelled = true;
-      };
-    } else {
-      setFetchedCustomTemplateConfig(undefined);
-    }
-  }, [form.templateKey, form.customTemplateId, current]);
+      })
+      .catch((caught) => {
+        if (!cancelled) setTemplateLoadError(caught instanceof Error ? caught.message : 'Custom Template could not be loaded.');
+      })
+      .finally(() => {
+        if (!cancelled) setTemplateLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.templateKey, form.customTemplateId, activeDraft?.template_key, activeDraft?.custom_template_id, activeDraft?.template_config_json, templateLoadNonce]);
+
+  const customTemplateLayoutValidation = useMemo(
+    () => validateFrontendCustomTemplateLayout(fetchedCustomTemplateConfig),
+    [fetchedCustomTemplateConfig]
+  );
+
+
+  const customTemplateValidation = useMemo(
+    () => validateFrontendCustomTemplateLayout(fetchedCustomTemplateConfig, form.templateKey === 'custom_template' ? form.blocks : undefined),
+    [fetchedCustomTemplateConfig, form.blocks, form.templateKey]
+  );
+  const customTemplateReady = form.templateKey !== 'custom_template'
+    || (Boolean(form.customTemplateId) && customTemplateValidation.valid && (!templateLoadError || frozenSelectionMatches));
+  const latestCustomTemplateVersionId = latestCustomTemplate?.current_version?.id ?? null;
+  const canUpgradeCustomTemplate = Boolean(
+    current && frozenSelectionMatches && latestCustomTemplate?.status === 'active' && latestCustomTemplateVersionId
+    && String(latestCustomTemplateVersionId) !== String(activeDraft?.custom_template_version_id)
+  );
 
   const change = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((old) => ({ ...old, [key]: value }));
 
@@ -201,8 +251,98 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
     }
     setSavedTemplateKey(persistedTemplate ?? form.templateKey);
   }
+
+  function validateTemplateTwoSidebar() {
+    if (form.templateKey !== 'template_2') return true;
+    const sidebarErrors = template2SidebarFieldErrors(form.blocks);
+    if (Object.keys(sidebarErrors).length === 0) return true;
+    setFieldErrors(sidebarErrors);
+    setError('Complete the required Template 2 sidebar fields.');
+    return false;
+  }
+
+  function validateCustomTemplateSelection() {
+    if (form.templateKey !== 'custom_template') return true;
+    if (!form.customTemplateId) {
+      setError('Select a Custom Template before saving.');
+      return false;
+    }
+    if (templateLoading && !frozenSelectionMatches) {
+      setError('Wait for the selected Custom Template to finish loading.');
+      return false;
+    }
+    if (templateLoadError && !frozenSelectionMatches) {
+      setError('Retry loading the selected Custom Template before saving.');
+      return false;
+    }
+    if (!customTemplateValidation.valid || !customTemplateValidation.config) {
+      setError('The Custom Template layout and its article sections do not match. Review the highlighted template errors.');
+      setFieldErrors(Object.fromEntries(customTemplateValidation.errors.map((item) => [`template_config_json.${item.path}`, item.message])));
+      return false;
+    }
+    return true;
+  }
+
+  async function confirmCustomTemplateSwitch() {
+    if (!pendingCustomTemplate) return;
+    if (pendingCustomTemplate.id === form.customTemplateId && form.templateKey === 'custom_template') {
+      setPendingCustomTemplate(null);
+      return;
+    }
+    setTemplateSwitchBusy(true);
+    setError('');
+    try {
+      const detail = await getCustomTemplate(pendingCustomTemplate.id);
+      const validated = validateFrontendCustomTemplateLayout(detail.current_version_detail?.layout_config_json);
+      if (!validated.valid || !validated.config) throw new Error('The selected Custom Template has an invalid current layout.');
+      const reconciled = reconcileCustomTemplateBlocks(validated.config, form.blocks, { keepOrphans: true });
+      setForm((old) => ({
+        ...old,
+        templateKey: 'custom_template',
+        customTemplateId: pendingCustomTemplate.id,
+        blocks: reconciled.document
+      }));
+      setFetchedCustomTemplateConfig(validated.config);
+      setLatestCustomTemplate(detail);
+      setCustomTemplateName(detail.name);
+      setTemplateLoadError('');
+      setPendingCustomTemplate(null);
+      const notes = [
+        reconciled.initializedBlockIds.length ? `${reconciled.initializedBlockIds.length} new section(s) initialized.` : '',
+        reconciled.orphanBlockIds.length || reconciled.recoveredBlockIds.length ? 'Unmatched content was retained in the Draft recovery data.' : ''
+      ].filter(Boolean).join(' ');
+      setNotice(notes || `Custom Template changed to ${detail.name}. Save the Draft to apply it.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Custom Template could not be switched.');
+    } finally {
+      setTemplateSwitchBusy(false);
+    }
+  }
+
+  async function confirmCustomTemplateUpgrade() {
+    if (!current || !canUpgradeCustomTemplate || dirty) return;
+    setUpgradeBusy(true);
+    setError('');
+    try {
+      const upgraded = await upgradeBlogCustomTemplate(current.id);
+      const nextBlocks = normalizeBlogBlocks(upgraded.draft_version?.blocks_json);
+      const nextForm: FormState = { ...form, blocks: nextBlocks };
+      setCurrent(upgraded);
+      setForm(nextForm);
+      setSnapshot(JSON.stringify(nextForm));
+      setFetchedCustomTemplateConfig(upgraded.draft_version?.template_config_json);
+      setSavedTemplateKey(upgraded.draft_version?.template_key ?? form.templateKey);
+      setNotice(`Custom Template upgraded to version ${latestCustomTemplate?.current_version?.version_number ?? 'latest'}. Review the reconciled sections before publishing.`);
+      setUpgradeOpen(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Custom Template upgrade failed.');
+    } finally {
+      setUpgradeBusy(false);
+    }
+  }
   async function saveDraft(event?: FormEvent) {
     event?.preventDefault();
+    if (!validateTemplateTwoSidebar() || !validateCustomTemplateSelection()) return null;
     setBusy(true);
     setError('');
     setNotice('');
@@ -235,6 +375,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
   }
 
   async function publish() {
+    if (!validateTemplateTwoSidebar() || !validateCustomTemplateSelection()) return;
     setBusy(true);
     setError('');
     try {
@@ -330,7 +471,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
             <span>Preview</span>
           </Button>
 
-          <Button type="submit" variant="secondary" size="sm" isLoading={busy}>
+          <Button type="submit" variant="secondary" size="sm" isLoading={busy} disabled={!customTemplateReady}>
             <Save size={14} />
             <span>Save Draft</span>
           </Button>
@@ -341,7 +482,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
               variant="primary"
               size="sm"
               isLoading={busy}
-              disabled={current?.status === 'published' && !dirty && !current.has_unpublished_changes}
+              disabled={!customTemplateReady || (current?.status === 'published' && !dirty && !current.has_unpublished_changes)}
               onClick={publish}
             >
               <Globe size={14} />
@@ -431,13 +572,20 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
 
           {form.templateKey === 'custom_template' ? (
             (() => {
-              const { valid, config } = validateFrontendCustomTemplateLayout(fetchedCustomTemplateConfig);
+              const { valid, config, errors: layoutErrors } = customTemplateLayoutValidation;
+              if (templateLoading && !config) {
+                return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><Alert variant="info">Loading the selected Custom Template sections...</Alert></Card>;
+              }
+              if (templateLoadError && !config) {
+                return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><Alert variant="error" action={<Button type="button" size="sm" variant="outline" onClick={() => { setTemplateLoading(true); setTemplateLoadError(''); setTemplateLoadNonce((value) => value + 1); }}>Retry</Button>}>{templateLoadError}</Alert></Card>;
+              }
               if (!valid || !config) {
-                return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><p className="text-sm text-slate-600">Save the Draft to load this Custom Template's article sections.</p></Card>;
+                return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><Alert variant="error">The selected Custom Template is invalid. {layoutErrors[0]?.message ?? 'Retry loading or choose another active template.'}</Alert></Card>;
               }
               return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><CustomTemplateBlockEditor layoutConfig={config} value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} onMediaResolved={(id, media) => setBlockMedia((old) => media ? { ...old, [id]: media } : old)} /></Card>;
             })()
           ) : ((form.templateKey === 'template_1' && selectedTemplateVersion === 2) || form.templateKey === 'template_2') && <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><BlogBlockEditor value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} onMediaResolved={(id, media) => setBlockMedia((old) => media ? { ...old, [id]: media } : old)} /></Card>}
+          {form.templateKey === 'template_2' ? <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><TemplateTwoSidebarEditor value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} /></Card> : null}
         </main>
 
         {/* Right Sidebar: Featured Image, SEO, Checklist, Metadata */}
@@ -448,42 +596,23 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">System Templates</p>
             <TemplateSelector
               value={form.templateKey}
-              onChange={(templateKey) => { change('templateKey', templateKey); change('customTemplateId', null); }}
+              onChange={(templateKey) => { setForm((old) => ({ ...old, templateKey, customTemplateId: null })); setFetchedCustomTemplateConfig(undefined); setLatestCustomTemplate(null); setTemplateLoadError(''); setTemplateLoading(false); }}
               disabled={busy}
             />
             <p className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wide text-slate-500">Custom Templates</p>
             <CustomTemplateSelector
               value={form.templateKey === 'custom_template' ? form.customTemplateId : null}
-              onChange={(id, template) => {
-                const nextBlocks = JSON.parse(JSON.stringify(form.blocks));
-                let modified = false;
-                const layout = (template.current_version as Record<string, unknown> | null)?.layout_config_json as { sections?: Array<{ slots?: Array<{ components?: Array<{ componentKey: string }> }> }> } | undefined;
-                if (layout?.sections) {
-                  layout.sections.forEach((sec) => {
-                    sec.slots?.forEach((slot) => {
-                      slot.components?.forEach((comp) => {
-                        const key = comp.componentKey as keyof typeof nextBlocks.blocks;
-                        if (key in nextBlocks.blocks && nextBlocks.blocks[key] && typeof nextBlocks.blocks[key] === 'object' && 'enabled' in nextBlocks.blocks[key]) {
-                          if (!nextBlocks.blocks[key].enabled) {
-                            nextBlocks.blocks[key].enabled = true;
-                            modified = true;
-                          }
-                        }
-                      });
-                    });
-                  });
-                }
-                setForm((old) => ({
-                  ...old,
-                  templateKey: 'custom_template',
-                  customTemplateId: id,
-                  blocks: modified ? nextBlocks : old.blocks
-                }));
-                setCustomTemplateName(template.name);
-                if (layout) setFetchedCustomTemplateConfig(layout);
-              }}
-              disabled={busy}
+              onChange={(id, template) => setPendingCustomTemplate({ id, template })}
+              disabled={busy || templateSwitchBusy || upgradeBusy}
             />
+            {form.templateKey === 'custom_template' && templateLoading ? <div className="mt-3"><Alert variant="info">Checking the selected Custom Template and its latest version...</Alert></div> : null}
+            {form.templateKey === 'custom_template' && templateLoadError ? <div className="mt-3"><Alert variant={frozenSelectionMatches ? 'warning' : 'error'} action={<Button type="button" size="sm" variant="outline" onClick={() => { setTemplateLoading(true); setTemplateLoadError(''); setTemplateLoadNonce((value) => value + 1); }}>Retry</Button>}>{templateLoadError}{frozenSelectionMatches ? ' The saved Draft snapshot remains selected.' : ''}</Alert></div> : null}
+            {form.templateKey === 'custom_template' && latestCustomTemplate?.status === 'archived' ? <div className="mt-3"><Alert variant="warning">This Blog keeps its saved Custom Template snapshot, but archived templates cannot be upgraded.</Alert></div> : null}
+            {canUpgradeCustomTemplate ? <div className="mt-3 space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <p className="text-xs font-semibold text-amber-900">A newer Custom Template version is available.</p>
+              <Button type="button" size="sm" variant="outline" disabled={dirty || busy} onClick={() => setUpgradeOpen(true)}>Upgrade to v{latestCustomTemplate?.current_version?.version_number}</Button>
+              {dirty ? <p className="text-[11px] text-amber-800">Save or discard current changes before upgrading.</p> : null}
+            </div> : null}
             <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50/60 p-3" aria-live="polite">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-bold text-slate-900">Selected: {selectedTemplateName}</p>
@@ -604,7 +733,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
         slug={form.slug}
         templateKey={form.templateKey}
         templateVersion={selectedTemplateVersion}
-        customTemplateConfig={form.templateKey === 'custom_template' ? ((current?.draft_version?.template_key === 'custom_template' && current.draft_version.template_config_json) || fetchedCustomTemplateConfig) : undefined}
+        customTemplateConfig={form.templateKey === 'custom_template' ? fetchedCustomTemplateConfig : undefined}
         content={form.content}
         blocks={form.blocks}
         blockMedia={blockMedia}
@@ -622,6 +751,27 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
         onConfirm={() => void confirmUnpublish()}
       />
 
+      <ConfirmationDialog
+        isOpen={pendingCustomTemplate !== null}
+        onClose={() => setPendingCustomTemplate(null)}
+        onConfirm={confirmCustomTemplateSwitch}
+        title="Switch Custom Template?"
+        message={<div className="space-y-2"><p>Changing the Custom Template updates this Blog&apos;s layout. Compatible article content will be preserved, but some template-specific sections may no longer be visible.</p><p>Switch from {selectedTemplateName} to {pendingCustomTemplate?.template.name ?? 'the selected template'}?</p><p>New blocks receive safe defaults. Unmatched content remains in Draft recovery data and is excluded from the published snapshot unless the new layout references it.</p></div>}
+        confirmText="Change Template"
+        variant="warning"
+        isLoading={templateSwitchBusy}
+      />
+
+      <ConfirmationDialog
+        isOpen={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        onConfirm={confirmCustomTemplateUpgrade}
+        title="Upgrade Custom Template Version?"
+        message={<div className="space-y-2"><p>The Draft snapshot will move from its saved version to v{latestCustomTemplate?.current_version?.version_number ?? 'latest'}.</p><p>Matching block IDs are preserved, new blocks are initialized, and unmatched Draft content is retained for recovery. The published Blog does not change until you publish updates.</p></div>}
+        confirmText="Upgrade Draft"
+        variant="warning"
+        isLoading={upgradeBusy}
+      />
       <ConfirmationDialog
         isOpen={leaveOpen}
         onClose={() => setLeaveOpen(false)}

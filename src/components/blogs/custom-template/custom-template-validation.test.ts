@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateFrontendCustomTemplateLayout } from './custom-template-validation';
-import { sampleFrontendCustomTemplateConfig } from './custom-template-sample';
+import { sampleFrontendBlocksDoc, sampleFrontendCustomTemplateConfig } from './custom-template-sample';
 import type { CustomTemplateLayoutConfigV1, CustomTemplateComponentInstance } from './custom-template.types';
 
 function cloneSample(): CustomTemplateLayoutConfigV1 {
@@ -244,5 +244,62 @@ describe('validateFrontendCustomTemplateLayout - parity with backend', () => {
     const result = validateFrontendCustomTemplateLayout(layout);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.path.includes('.responsiveStrategy'))).toBe(true);
+  });
+
+  it('rejects duplicate non-sentinel block IDs with the first placement path', () => {
+    const layout = cloneSample();
+    layout.sections[0].slots[0].components.push(asComponent({
+      id: 'comp-hero-copy', componentKey: 'hero', blockId: 'hero', enabled: true,
+      settings: { height: 'standard', alignment: 'left', overlay: 'medium' }
+    }));
+    const result = validateFrontendCustomTemplateLayout(layout);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.message.includes("Duplicate blockId 'hero'") && error.message.includes('First used at'))).toBe(true);
+  });
+
+  it('allows the intentional article_content sentinel on repeated Rich Article Content placements', () => {
+    const layout = cloneSample();
+    layout.sections[1].slots[0].components.push(asComponent({
+      id: 'comp-article-copy', componentKey: 'rich_article_content', blockId: 'article_content', enabled: true,
+      settings: { fontSize: 'medium', lineHeight: 'relaxed' }
+    }));
+    expect(validateFrontendCustomTemplateLayout(layout).valid).toBe(true);
+  });
+
+  it('rejects unsafe and reserved block IDs', () => {
+    const unsafe = cloneSample();
+    asMutable(unsafe.sections[0].slots[0].components[0]).blockId = 'hero block';
+    expect(validateFrontendCustomTemplateLayout(unsafe).errors.some((error) => error.message.includes('letters, numbers'))).toBe(true);
+
+    const reserved = cloneSample();
+    asMutable(reserved.sections[1].slots[0].components[0]).blockId = 'article_content';
+    expect(validateFrontendCustomTemplateLayout(reserved).errors.some((error) => error.message.includes('reserved'))).toBe(true);
+  });
+
+  it('does not require Blog content for disabled placements', () => {
+    const layout = cloneSample();
+    layout.sections[1].slots[0].components[0].enabled = false;
+    const blocks = JSON.parse(JSON.stringify(sampleFrontendBlocksDoc));
+    delete blocks.custom_instances.key_takeaways;
+    expect(validateFrontendCustomTemplateLayout(layout, blocks).valid).toBe(true);
+  });
+
+  it('restores documented defaults and historical element aliases without hiding unsupported values', () => {
+    const layout = cloneSample();
+    delete asMutable(layout).page;
+    delete asMutable(layout.sections[0]).enabled;
+    delete asMutable(layout.sections[0]).responsiveStrategy;
+    delete asMutable(layout.sections[0]).background;
+    layout.sections[0].slots[0].components.push(asComponent({
+      id: 'legacy-spacer', componentKey: 'spacer', settings: { height: 'small' }
+    }));
+    const result = validateFrontendCustomTemplateLayout(layout);
+    expect(result.valid).toBe(true);
+    expect(result.config?.page).toEqual({ contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' });
+    expect(result.config?.sections[0]).toMatchObject({ enabled: true, responsiveStrategy: 'stack_on_mobile', background: 'white' });
+    expect(result.config?.sections[0].slots[0].components.at(-1)?.settings).toEqual({ size: 'small' });
+
+    asMutable(layout).page = { contentWidth: 'teleport', background: 'white', spacing: 'normal', typography: 'editorial' };
+    expect(validateFrontendCustomTemplateLayout(layout).errors.some((error) => error.path === 'page.contentWidth')).toBe(true);
   });
 });

@@ -3,11 +3,12 @@
 import React from 'react';
 import type { CustomTemplateSection } from '../custom-template.types';
 import { Select } from '@/components/ui/select';
+import { SECTION_SETTING_OPTIONS } from '../custom-template-settings';
 
 interface SectionSettingsFormProps {
   sectionId: string;
   sections: CustomTemplateSection[];
-  dispatch: React.Dispatch<unknown>;
+  dispatch: React.Dispatch<any>;
 }
 
 export default function SectionSettingsForm({
@@ -36,48 +37,51 @@ export default function SectionSettingsForm({
       <div className="space-y-4">
         <Select
           label="Section Status"
-          options={[
-            { label: 'Enabled (active)', value: 'true' },
-            { label: 'Disabled (hidden)', value: 'false' }
-          ]}
+          options={[...SECTION_SETTING_OPTIONS.enabled]}
           value={String(section.enabled)}
           onChange={(e) => handleUpdate({ enabled: e.target.value === 'true' })}
         />
 
         <Select
           label="Column Layout"
-          options={[
-            { label: 'Full Width Row (1 Slot)', value: 'full_width' },
-            { label: 'Split Content + Sidebar (2 Slots)', value: 'content_sidebar' },
-            { label: 'Two Equal Columns (2 Slots)', value: 'two_column' },
-            { label: 'Three Equal Columns (3 Slots)', value: 'three_column' }
-          ]}
+          options={[...SECTION_SETTING_OPTIONS.layout]}
           value={section.layout}
           onChange={(e) => handleUpdate({ layout: e.target.value as any })}
         />
 
         <Select
           label="Responsive Strategy"
-          options={[
-            { label: 'Stack items vertically on mobile screen', value: 'stack_on_mobile' },
-            { label: 'Push Sidebar below content grid on tablets', value: 'sidebar_below_on_tablet' },
-            { label: 'Keep Equal column widths always', value: 'equal_columns' },
-            { label: 'Main flow + Side section grid', value: 'main_sidebar' },
-            { label: 'Adapt 3-cols to 2-cols to 1-col grids', value: 'three_to_two_to_one' }
-          ]}
+          options={[...SECTION_SETTING_OPTIONS.responsiveStrategy]}
           value={section.responsiveStrategy}
           onChange={(e) => handleUpdate({ responsiveStrategy: e.target.value as any })}
         />
 
         <Select
           label="Background Style"
-          options={[
-            { label: 'Plain White', value: 'white' },
-            { label: 'Soft Slate Block', value: 'slate' },
-            { label: 'Clean Blue Sky Tint', value: 'sky' }
-          ]}
-          value={section.background || 'white'}
-          onChange={(e) => handleUpdate({ background: e.target.value as any })}
+          options={[...SECTION_SETTING_OPTIONS.backgroundStyle]}
+          value={section.settings?.backgroundStyle || 'inherit'}
+          onChange={(e) => dispatch({ type: 'update_section_settings', sectionId, updates: { backgroundStyle: e.target.value as any } })}
+        />
+
+        <Select
+          label="Content Width"
+          options={[...SECTION_SETTING_OPTIONS.width]}
+          value={section.settings?.width || 'inherit'}
+          onChange={(e) => dispatch({ type: 'update_section_settings', sectionId, updates: { width: e.target.value as any } })}
+        />
+
+        <Select
+          label="Top Padding"
+          options={[...SECTION_SETTING_OPTIONS.paddingTop]}
+          value={section.settings?.paddingTop || 'inherit'}
+          onChange={(e) => dispatch({ type: 'update_section_settings', sectionId, updates: { paddingTop: e.target.value as any } })}
+        />
+
+        <Select
+          label="Bottom Padding"
+          options={[...SECTION_SETTING_OPTIONS.paddingBottom]}
+          value={section.settings?.paddingBottom || 'inherit'}
+          onChange={(e) => dispatch({ type: 'update_section_settings', sectionId, updates: { paddingBottom: e.target.value as any } })}
         />
       </div>
     </div>

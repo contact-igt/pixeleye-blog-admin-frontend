@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { newsletterService, type FeedbackSummaryResponse } from '@/services/newsletter.service';
-import { ThumbsUp, ThumbsDown, MessageSquare, Percent } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, MessageSquare, Percent, AlertTriangle } from 'lucide-react';
 
 interface FeedbackAnalyticsProps {
   blogId: string;
@@ -14,22 +14,24 @@ export function FeedbackAnalytics({ blogId }: FeedbackAnalyticsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const loadFeedback = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const data = await newsletterService.getFeedbackSummary(blogId);
-        setSummary(data);
-      } catch (err) {
-        console.error('Feedback analytics failed:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadFeedback();
+  const loadFeedback = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await newsletterService.getFeedbackSummary(blogId);
+      setSummary(data);
+    } catch (err) {
+      console.error('Feedback analytics failed:', err);
+      setSummary(null);
+      setError(err instanceof Error ? err.message : 'Failed to load feedback analytics.');
+    } finally {
+      setLoading(false);
+    }
   }, [blogId]);
+
+  useEffect(() => {
+    void loadFeedback();
+  }, [loadFeedback]);
 
   if (loading) {
     return (
@@ -44,15 +46,34 @@ export function FeedbackAnalytics({ blogId }: FeedbackAnalyticsProps) {
     );
   }
 
-  if (!summary || summary.total_count === 0) {
+  if (error) {
     return (
-      <Card className="p-8 text-center bg-slate-50 border-dashed">
-        <MessageSquare className="mx-auto h-8 w-8 text-slate-300 mb-3" />
-        <p className="text-sm text-slate-600 font-medium">No feedback responses yet</p>
-        <p className="text-xs text-slate-400 mt-1">Feedback from readers will appear here once submitted.</p>
+      <Card className="p-8 text-center bg-red-50 border-red-100">
+        <AlertTriangle className="mx-auto h-8 w-8 text-red-400 mb-3" />
+        <p className="text-sm text-red-700 font-medium">Could not load feedback analytics</p>
+        <p className="text-xs text-red-500 mt-1">{error}</p>
+        <button
+          type="button"
+          onClick={() => void loadFeedback()}
+          className="mt-4 text-sm font-medium text-red-700 underline underline-offset-2"
+        >
+          Retry
+        </button>
       </Card>
     );
   }
+
+  if (!summary) {
+    return (
+      <Card className="p-8 text-center bg-slate-50 border-dashed">
+        <MessageSquare className="mx-auto h-8 w-8 text-slate-300 mb-3" />
+        <p className="text-sm text-slate-600 font-medium">Feedback data is not available</p>
+        <p className="text-xs text-slate-400 mt-1">Try refreshing this page.</p>
+      </Card>
+    );
+  }
+
+  const hasResponses = summary.total_count > 0;
 
   return (
     <div className="space-y-6">
@@ -67,14 +88,14 @@ export function FeedbackAnalytics({ blogId }: FeedbackAnalyticsProps) {
             <div className="text-3xl font-bold text-green-700">
               {summary.yes_count}
             </div>
-            <p className="text-xs font-semibold text-green-600/80 uppercase tracking-wider mt-2">Helpful</p>
+            <p className="text-xs font-semibold text-green-600/80 uppercase tracking-wider mt-2">Yes</p>
           </div>
           <div className="text-center p-4 bg-red-50 rounded-xl border border-red-100">
             <ThumbsDown className="mx-auto h-6 w-6 text-red-500 mb-2 opacity-80" />
             <div className="text-3xl font-bold text-red-700">
               {summary.no_count}
             </div>
-            <p className="text-xs font-semibold text-red-600/80 uppercase tracking-wider mt-2">Not Helpful</p>
+            <p className="text-xs font-semibold text-red-600/80 uppercase tracking-wider mt-2">No</p>
           </div>
           <div className="text-center p-4 bg-blue-50 rounded-xl border border-blue-100">
             <MessageSquare className="mx-auto h-6 w-6 text-blue-500 mb-2 opacity-80" />
@@ -91,6 +112,11 @@ export function FeedbackAnalytics({ blogId }: FeedbackAnalyticsProps) {
             <p className="text-xs font-semibold text-purple-600/80 uppercase tracking-wider mt-2">Helpful Rate</p>
           </div>
         </div>
+        {!hasResponses && (
+          <p className="mt-5 text-center text-xs text-slate-500">
+            No reader responses yet. The counts above will update after a reader votes.
+          </p>
+        )}
       </Card>
 
       {summary.versions && summary.versions.length > 1 && (

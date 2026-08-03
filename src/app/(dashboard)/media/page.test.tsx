@@ -91,12 +91,14 @@ describe('MediaPage', () => {
     expect(screen.queryByRole('button', { name: /Delete hero.jpg/ })).not.toBeInTheDocument();
   });
 
-  it('uploads and moves media to trash with confirmation', async () => {
+  it('uploads, reloads the canonical list, and moves media to trash with confirmation', async () => {
     const user = userEvent.setup();
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview');
+    const uploadedMedia = { ...media, id: '2', original_file_name: 'uploaded-hero.jpg' };
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(listResponse([media]))
-      .mockResolvedValueOnce(jsonResponse({ success: true, data: { ...media, id: '2', original_file_name: 'uploaded-hero.jpg' } }, { status: 201 }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, data: uploadedMedia }, { status: 201 }))
+      .mockResolvedValueOnce(listResponse([uploadedMedia, media]))
       .mockResolvedValueOnce(jsonResponse({ success: true, data: { ...media, status: 'trashed' } }));
     vi.stubGlobal('fetch', fetchMock);
     render(<MediaPage />);
@@ -104,12 +106,77 @@ describe('MediaPage', () => {
     await user.click(screen.getByRole('button', { name: /Upload Image/ }));
     await user.upload(screen.getByLabelText(/Image file/), new File(['abc'], 'hero.png', { type: 'image/png' }));
     await user.click(screen.getAllByRole('button', { name: /^Upload image$/i }).at(-1)!);
-    await screen.findByText('Media asset uploaded.');
+    await screen.findByText('Image uploaded successfully.');
+    await screen.findByText('uploaded-hero.jpg');
+    expect(screen.queryByRole('dialog', { name: /Upload Media Asset/ })).not.toBeInTheDocument();
+    const uploadBody = fetchMock.mock.calls[1][1].body as FormData;
+    expect(uploadBody.get('purpose')).toBe('hero');
+    expect(uploadBody.get('client_id')).toMatch(/^\d{19}$/);
+    expect(fetchMock).toHaveBeenNthCalledWith(3, expect.stringContaining('/media/assets?page=1&limit=24&sort_by=created_at&sort_order=desc'), expect.anything());
     await user.click(screen.getByRole('button', { name: /Move hero.jpg to trash/ }));
     expect(screen.getByText('Move media asset to Trash?')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^Move to Trash$/ }));
     await screen.findByText('Media asset moved to Trash and can be restored.');
     expect(fetchMock).toHaveBeenLastCalledWith(expect.stringContaining('/media/assets/1'), expect.objectContaining({ method: 'DELETE' }));
+  });
+
+  it('resets list filters after upload so the new media is visible after refresh', async () => {
+    query = 'page=2&search=old&purpose=card&sort_order=asc';
+    const user = userEvent.setup();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(listResponse([media]))
+      .mockResolvedValueOnce(jsonResponse({ success: true, data: { ...media, id: '2', original_file_name: 'uploaded-hero.jpg' } }, { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<MediaPage />);
+    await screen.findByText('hero.jpg');
+    await user.click(screen.getByRole('button', { name: /Upload Image/ }));
+    await user.upload(screen.getByLabelText(/Image file/), new File(['abc'], 'hero.png', { type: 'image/png' }));
+    await user.click(screen.getAllByRole('button', { name: /^Upload image$/i }).at(-1)!);
+
+    await screen.findByText('Image uploaded successfully.');
+    expect(replaceMock).toHaveBeenCalledWith('/media?page=1');
+  });
+
+  it('keeps the modal open and shows a precise storage failure', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(listResponse([media]))
+      .mockResolvedValueOnce(jsonResponse({ success: false, message: 'Cloudflare R2 upload failed' }, { status: 502 }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<MediaPage />);
+    await screen.findByText('hero.jpg');
+    await user.click(screen.getByRole('button', { name: /Upload Image/ }));
+    await user.upload(screen.getByLabelText(/Image file/), new File(['abc'], 'hero.png', { type: 'image/png' }));
+    await user.click(screen.getAllByRole('button', { name: /^Upload Image$/i }).at(-1)!);
+
+    await screen.findByText('The image could not be stored. Please try again.');
+    expect(screen.getByRole('dialog', { name: /Upload Media Asset/ })).toBeInTheDocument();
+  });
+
+  it('disables upload while pending and sends only one POST on duplicate click', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview');
+    let resolveUpload: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(listResponse([media]))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveUpload = resolve; }))
+      .mockResolvedValueOnce(listResponse([media]));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<MediaPage />);
+    await screen.findByText('hero.jpg');
+    await user.click(screen.getByRole('button', { name: /Upload Image/ }));
+    await user.upload(screen.getByLabelText(/Image file/), new File(['abc'], 'hero.png', { type: 'image/png' }));
+    const uploadButton = screen.getAllByRole('button', { name: /^Upload Image$/i }).at(-1)!;
+    await user.click(uploadButton);
+    const pendingButton = await screen.findByRole('button', { name: /Uploading/ });
+    expect(pendingButton).toBeDisabled();
+    fireEvent.click(pendingButton);
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+    resolveUpload?.(jsonResponse({ success: true, data: media }, { status: 201 }));
+    await screen.findByText('Image uploaded successfully.');
   });
 
   it('restores trashed media', async () => {

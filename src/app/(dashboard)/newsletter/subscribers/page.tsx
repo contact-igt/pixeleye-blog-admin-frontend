@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { newsletterService, type SubscriberStatsResponse } from '@/services/newsletter.service';
 import { Modal } from '@/components/ui/modal';
+import { useToast } from '@/contexts/toast-context';
+import { getSafeApiErrorMessage } from '@/utils/api-error';
 
 interface Subscriber {
   id: string;
@@ -22,6 +24,7 @@ interface Subscriber {
   verificationSentAt: string | null;
   verifiedAt: string | null;
   unsubscribedAt: string | null;
+  resubscriptionRequestedAt?: string | null;
   createdAt: string;
 }
 
@@ -52,12 +55,21 @@ export default function SubscribersPage() {
 
   // Resend verification
   const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resubscriptionId, setResubscriptionId] = useState<string | null>(null);
 
   // Delete confirmation
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | undefined>();
+
+  // Resubscribe confirmation
+  const [resubscribeConfirmOpen, setResubscribeConfirmOpen] = useState(false);
+  const [resubscribeTargetId, setResubscribeTargetId] = useState<string | null>(null);
+  const [resubscribeError, setResubscribeError] = useState<string | undefined>();
+
+  const { showToast } = useToast();
 
   const loadData = useCallback(async () => {
     try {
@@ -94,8 +106,9 @@ export default function SubscribersPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      showToast({ type: 'success', message: 'Export successful.' });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Export failed');
+      showToast({ type: 'error', message: getSafeApiErrorMessage(err) });
     } finally {
       setExporting(false);
     }
@@ -108,7 +121,7 @@ export default function SubscribersPage() {
       const data = await newsletterService.getSubscriber(id);
       setSelectedSubscriber(data);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to load subscriber details');
+      showToast({ type: 'error', message: getSafeApiErrorMessage(err) });
       setIsDetailModalOpen(false);
     } finally {
       setLoadingDetail(false);
@@ -128,7 +141,7 @@ export default function SubscribersPage() {
     try {
       setIsCreating(true);
       setCreateError('');
-      await newsletterService.createSubscriber({
+      const created = await newsletterService.createSubscriber({
         email: createEmail,
         consent_note: createConsentNote || undefined
       });
@@ -138,10 +151,15 @@ export default function SubscribersPage() {
       setCreateEmail('');
       setCreateConsentNote('');
       void loadData();
+
+      if (created.email_sent === false) {
+        showToast({ type: 'warning', message: 'Subscriber saved as pending, but the verification email could not be sent. Check SMTP configuration and use Resend Verification.' });
+      } else {
+        showToast({ type: 'success', message: 'Subscriber added successfully.' });
+      }
     } catch (err: any) {
       // On error, show message but keep modal open so user can retry
-      const message = err?.data?.message || err?.message || 'Failed to create subscriber';
-      setCreateError(message);
+      setCreateError(getSafeApiErrorMessage(err));
 
       // Still refresh in case subscriber was partially created
       void loadData();
@@ -153,12 +171,15 @@ export default function SubscribersPage() {
   const handleResendVerification = async (id: string) => {
     try {
       setResendingId(id);
-      await newsletterService.resendSubscriberVerification(id);
+      const resent = await newsletterService.resendSubscriberVerification(id);
       void loadData();
-      // Don't show alert on success, let the refresh indicate it worked
+      if (resent.email_sent === false) {
+        showToast({ type: 'warning', message: 'Subscriber saved as pending, but the verification email could not be sent. Check SMTP configuration and use Resend Verification.' });
+      } else {
+        showToast({ type: 'success', message: 'Verification email resent.' });
+      }
     } catch (err: any) {
-      const message = err?.data?.message || err?.message || 'Failed to resend verification';
-      alert(message);
+      showToast({ type: 'error', message: getSafeApiErrorMessage(err) });
       // Refresh in case token was updated but email failed
       void loadData();
     } finally {
@@ -169,20 +190,45 @@ export default function SubscribersPage() {
   const handleDeleteClick = (id: string) => {
     setDeleteTargetId(id);
     setDeleteReason('');
+    setDeleteError(undefined);
     setDeleteConfirmOpen(true);
+  };
+
+  const handleResubscriptionClick = (id: string) => {
+    setResubscribeTargetId(id);
+    setResubscribeError(undefined);
+    setResubscribeConfirmOpen(true);
+  };
+
+  const handleConfirmResubscription = async () => {
+    if (!resubscribeTargetId) return;
+    try {
+      setResubscriptionId(resubscribeTargetId);
+      setResubscribeError(undefined);
+      await newsletterService.sendSubscriberResubscription(resubscribeTargetId);
+      await loadData();
+      setResubscribeConfirmOpen(false);
+      setResubscribeTargetId(null);
+      showToast({ type: 'success', message: 'Resubscription request sent.' });
+    } catch (err) { 
+      setResubscribeError(getSafeApiErrorMessage(err));
+    } finally { 
+      setResubscriptionId(null); 
+    }
   };
 
   const handleConfirmDelete = async () => {
     if (!deleteTargetId) return;
     try {
       setIsDeleting(true);
+      setDeleteError(undefined);
       await newsletterService.deleteSubscriber(deleteTargetId, deleteReason || undefined);
       setDeleteConfirmOpen(false);
       setDeleteTargetId(null);
       void loadData();
+      showToast({ type: 'success', message: 'Subscriber deleted.' });
     } catch (err: any) {
-      const message = err?.data?.message || err?.message || 'Failed to delete subscriber';
-      alert(message);
+      setDeleteError(getSafeApiErrorMessage(err));
     } finally {
       setIsDeleting(false);
     }
@@ -320,29 +366,20 @@ export default function SubscribersPage() {
                           onClick={() => void handleResendVerification(sub.id)}
                           disabled={resendingId === sub.id}
                         >
-                          {resendingId === sub.id ? 'Resending...' : 'Resend'}
+                          {resendingId === sub.id ? 'Resending…' : 'Resend Verification'}
                         </Button>
                       )}
-                      {(sub.status === 'unsubscribed' || sub.status === 'subscribed') && (
+                      {sub.status === 'unsubscribed' && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            if (sub.status === 'unsubscribed') {
-                              void handleResendVerification(sub.id);
-                            } else {
-                              handleDeleteClick(sub.id);
-                            }
-                          }}
-                          disabled={resendingId === sub.id || isDeleting}
-                          className={sub.status === 'unsubscribed' ? '' : 'text-red-600'}
+                          onClick={() => handleResubscriptionClick(sub.id)}
+                          disabled={resubscriptionId === sub.id}
                         >
-                          {sub.status === 'unsubscribed'
-                            ? (resendingId === sub.id ? 'Sending...' : 'Send New Verification')
-                            : 'Delete'}
+                          {resubscriptionId === sub.id ? 'Sending…' : 'Send Resubscription Request'}
                         </Button>
                       )}
-                      {sub.status === 'pending' && (
+                      {['pending', 'subscribed', 'unsubscribed'].includes(sub.status) && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -449,6 +486,9 @@ export default function SubscribersPage() {
                       </p>
                     </div>
                   )}
+                  {selectedSubscriber.resubscriptionRequestedAt && (
+                    <div><p className="font-medium text-slate-800">Last Resubscription Request</p><p className="text-slate-500 text-xs">{new Date(selectedSubscriber.resubscriptionRequestedAt).toLocaleString()}</p></div>
+                  )}
                 </div>
               </div>
             </>
@@ -527,7 +567,8 @@ export default function SubscribersPage() {
 
       <ConfirmationDialog
         isOpen={deleteConfirmOpen}
-        title="Delete Newsletter Subscriber?"
+        title="Delete Subscriber?"
+        variant="destructive"
         message={
           <div className="space-y-3 text-sm">
             <div className="p-3 bg-slate-50 rounded-lg">
@@ -539,7 +580,7 @@ export default function SubscribersPage() {
               </p>
             </div>
             <p className="text-slate-600">
-              This removes the subscriber from future newsletter campaigns. Existing email delivery history may be preserved for reporting and audit integrity.
+              Deleting this subscriber will prevent future Campaign emails. Existing delivery history will be preserved where required.
             </p>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-2">
@@ -555,9 +596,24 @@ export default function SubscribersPage() {
             </div>
           </div>
         }
-        confirmText={isDeleting ? 'Deleting...' : 'Delete Subscriber'}
+        confirmText="Delete Subscriber"
+        loadingText="Deleting..."
         onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        errorMessage={deleteError}
         onClose={() => !isDeleting && setDeleteConfirmOpen(false)}
+      />
+
+      <ConfirmationDialog
+        isOpen={resubscribeConfirmOpen}
+        title="Send Resubscription Request?"
+        message="This person previously unsubscribed. They will remain unsubscribed unless they personally confirm the new subscription request."
+        confirmText="Send Request"
+        loadingText="Sending..."
+        onConfirm={handleConfirmResubscription}
+        isLoading={!!resubscriptionId}
+        errorMessage={resubscribeError}
+        onClose={() => !resubscriptionId && setResubscribeConfirmOpen(false)}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import ComponentSettingsForm from './component-settings-form';
 import SectionSettingsForm from './section-settings-form';
 import ValidationPanel from './validation-panel';
 import { Select } from '@/components/ui/select';
+import { PAGE_SETTING_OPTIONS } from '../custom-template-settings';
 
 interface SettingsPanelProps {
   state: BuilderState;
@@ -126,45 +127,28 @@ export default function SettingsPanel({
               <div className="space-y-4">
                 <Select
                   label="Content Column Width"
-                  options={[
-                    { label: 'Narrow (max-w-2xl)', value: 'narrow' },
-                    { label: 'Standard (max-w-4xl)', value: 'standard' },
-                    { label: 'Wide (max-w-6xl)', value: 'wide' },
-                    { label: 'Full Width (100%)', value: 'full' }
-                  ]}
+                  options={[...PAGE_SETTING_OPTIONS.contentWidth]}
                   value={state.layout.page.contentWidth}
                   onChange={(e) => dispatch({ type: 'update_page_settings', updates: { contentWidth: e.target.value as any } })}
                 />
 
                 <Select
                   label="Page Background Style"
-                  options={[
-                    { label: 'White Plain', value: 'white' },
-                    { label: 'Soft Slated Gray', value: 'soft_gray' },
-                    { label: 'Brand Tinted Blue', value: 'brand_tint' }
-                  ]}
+                  options={[...PAGE_SETTING_OPTIONS.background]}
                   value={state.layout.page.background}
                   onChange={(e) => dispatch({ type: 'update_page_settings', updates: { background: e.target.value as any } })}
                 />
 
                 <Select
                   label="Vertical Section Spacing"
-                  options={[
-                    { label: 'Compact Spacing', value: 'compact' },
-                    { label: 'Normal Standard Spacing', value: 'normal' },
-                    { label: 'Spacious Paddings', value: 'spacious' }
-                  ]}
+                  options={[...PAGE_SETTING_OPTIONS.spacing]}
                   value={state.layout.page.spacing}
                   onChange={(e) => dispatch({ type: 'update_page_settings', updates: { spacing: e.target.value as any } })}
                 />
 
                 <Select
                   label="Typography Variant"
-                  options={[
-                    { label: 'Editorial (Serif Content)', value: 'editorial' },
-                    { label: 'Modern Sans', value: 'modern' },
-                    { label: 'Clinical Monospace accents', value: 'clinical' }
-                  ]}
+                  options={[...PAGE_SETTING_OPTIONS.typography]}
                   value={state.layout.page.typography}
                   onChange={(e) => dispatch({ type: 'update_page_settings', updates: { typography: e.target.value as any } })}
                 />

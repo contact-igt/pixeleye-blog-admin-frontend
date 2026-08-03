@@ -28,12 +28,6 @@ export default function DevicePreview({
     return 'w-full max-w-5xl rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 overflow-hidden';
   };
 
-  const getTypographyClass = (variant: string) => {
-    if (variant === 'modern') return 'font-sans';
-    if (variant === 'clinical') return 'font-mono';
-    return 'font-serif';
-  };
-
   return (
     <div className="w-full flex flex-col items-center select-none overflow-x-hidden min-h-full py-4">
       {/* Edit vs Preview Mode switch header */}
@@ -69,7 +63,7 @@ export default function DevicePreview({
             />
           </div>
         ) : (
-          <div className={`p-6 flex-1 overflow-y-auto bg-white ${getTypographyClass(layout.page.typography)}`}>
+          <div className="flex-1 overflow-y-auto">
             <CustomTemplateRenderer
               layoutConfig={layout}
               blocksDoc={buildPreviewBlocksDoc(layout)}

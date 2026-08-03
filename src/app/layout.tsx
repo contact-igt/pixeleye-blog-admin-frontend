@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Nunito_Sans, Poppins } from 'next/font/google';
 import { AuthProvider } from '@/components/auth/auth-provider';
+import { ToastProvider } from '@/contexts/toast-context';
 import './globals.css';
 
 const poppins = Poppins({ subsets: ['latin'], weight: ['500', '600', '700'], variable: '--font-heading', display: 'swap' });
@@ -13,5 +14,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className={`${poppins.variable} ${inter.variable} ${nunitoSans.variable}`}><body className="antialiased"><AuthProvider>{children}</AuthProvider></body></html>;
+  return <html lang="en" className={`${poppins.variable} ${inter.variable} ${nunitoSans.variable}`}><body className="antialiased"><AuthProvider><ToastProvider>{children}</ToastProvider></AuthProvider></body></html>;
 }

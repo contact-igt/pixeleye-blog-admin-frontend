@@ -5,6 +5,7 @@ import type { CustomTemplateSection } from '../custom-template.types';
 import type { SelectedElement } from './builder-state';
 import BuilderSlot from './builder-slot';
 import { ArrowUp, ArrowDown, Copy, Trash, Layout } from 'lucide-react';
+import { sectionGridClass, resolveSectionSettings, sectionBackgroundClass, sectionWidthClass, sectionPaddingClass } from '../custom-template-settings';
 
 interface BuilderSectionProps {
   section: CustomTemplateSection;
@@ -14,6 +15,7 @@ interface BuilderSectionProps {
   selectedElement: SelectedElement;
   sections: any[];
   device?: 'desktop' | 'tablet' | 'mobile';
+  pageSettings?: any;
 }
 
 export default function BuilderSection({
@@ -23,9 +25,11 @@ export default function BuilderSection({
   dispatch,
   selectedElement,
   sections,
-  device = 'desktop'
+  device = 'desktop',
+  pageSettings
 }: BuilderSectionProps) {
   const isSelected = selectedElement?.type === 'section' && selectedElement.sectionId === section.id;
+  const resolved = pageSettings ? resolveSectionSettings(pageSettings, section.settings) : { width: 'full', backgroundStyle: section.background || 'white', paddingTop: 'normal', paddingBottom: 'normal' };
 
   const handleSelect = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -40,25 +44,11 @@ export default function BuilderSection({
     return l;
   };
 
-  const getGridColsClass = (l: string, dev: 'desktop' | 'tablet' | 'mobile') => {
-    if (dev === 'mobile') {
-      return 'grid-cols-1';
-    }
-    if (dev === 'tablet') {
-      if (l === 'three_column' || l === 'two_column') return 'grid-cols-1 sm:grid-cols-2';
-      return 'grid-cols-1';
-    }
-    if (l === 'full_width') return 'grid-cols-1';
-    if (l === 'two_column') return 'grid-cols-1 md:grid-cols-2';
-    if (l === 'three_column') return 'grid-cols-1 md:grid-cols-3';
-    return 'grid-cols-1 lg:grid-cols-[1fr_260px]'; // standard content sidebar structure
-  };
-
   return (
     <div
       onClick={handleSelect}
-      className={`group relative rounded-xl transition-all duration-300 ${
-        isSelected ? 'bg-white shadow-sm ring-1 ring-sky-300' : 'hover:bg-slate-50/80 hover:ring-1 hover:ring-slate-200'
+      className={`group relative rounded-xl transition-all duration-300 ${sectionBackgroundClass(resolved.backgroundStyle as any)} ${
+        isSelected ? 'shadow-sm ring-1 ring-sky-300' : 'hover:ring-1 hover:ring-slate-200'
       }`}
     >
       {/* Floating Action Bar (visible on select or hover) */}
@@ -116,22 +106,24 @@ export default function BuilderSection({
       </div>
 
       {/* Slots body wrapper */}
-      <div className={`p-4 md:p-6 grid gap-4 lg:gap-6 relative z-10 min-w-0 w-full overflow-hidden ${getGridColsClass(section.layout, device)}`}>
-        {!section.enabled && (
-          <div className="absolute inset-0 bg-slate-50/50 backdrop-blur-[1px] z-10 rounded-xl flex items-center justify-center">
-            <span className="bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">Section Disabled</span>
-          </div>
-        )}
-        {section.slots.map((slot) => (
-          <BuilderSlot
-            key={slot.id}
-            slot={slot}
-            sectionId={section.id}
-            dispatch={dispatch}
-            selectedElement={selectedElement}
-            sections={sections}
-          />
-        ))}
+      <div className={`mx-auto w-full px-4 ${sectionWidthClass(resolved.width as any)} ${sectionPaddingClass(resolved.paddingTop as any, resolved.paddingBottom as any, device)}`}>
+        <div className={`relative z-10 min-w-0 w-full overflow-hidden ${sectionGridClass(section.layout, section.responsiveStrategy, device)}`}>
+          {!section.enabled && (
+            <div className="absolute inset-0 bg-slate-50/50 backdrop-blur-[1px] z-10 rounded-xl flex items-center justify-center">
+              <span className="bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">Section Disabled</span>
+            </div>
+          )}
+          {section.slots.map((slot) => (
+            <BuilderSlot
+              key={slot.id}
+              slot={slot}
+              sectionId={section.id}
+              dispatch={dispatch}
+              selectedElement={selectedElement}
+              sections={sections}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

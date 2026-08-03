@@ -1,4 +1,4 @@
-﻿import { clearAccessToken, getAccessToken, setAccessToken } from './auth-token';
+import { clearAccessToken, getAccessToken, setAccessToken } from './auth-token';
 import type { ApiResponse, AuthTokenResponse } from '@/types/auth';
 import config from '@/lib/config';
 
@@ -17,6 +17,7 @@ export interface ApiRequestOptions extends RequestInit {
   auth?: boolean;
   retryOnUnauthorized?: boolean;
   skipRefresh?: boolean;
+  timeoutMs?: number;
 }
 
 let refreshPromise: Promise<string> | null = null;
@@ -142,16 +143,21 @@ async function parsePayload(response: Response): Promise<Record<string, unknown>
 
 async function performRequest(path: string, init: ApiRequestOptions): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), init.timeoutMs ?? TIMEOUT_MS);
+  const abortFromCaller = () => controller.abort();
+  init.signal?.addEventListener('abort', abortFromCaller, { once: true });
   try {
+    const { auth: _auth, retryOnUnauthorized: _retry, skipRefresh: _skip, timeoutMs: _timeout, ...requestInit } = init;
     return await fetch(buildApiUrl(path), {
-      ...init,
+      ...requestInit,
+      cache: init.cache ?? 'no-store',
       headers: buildHeaders(init),
       credentials: 'include',
       signal: controller.signal
     });
   } finally {
     clearTimeout(timer);
+    init.signal?.removeEventListener('abort', abortFromCaller);
   }
 }
 

@@ -11,6 +11,7 @@ export interface Subscriber {
   verification_sent_at: string | null;
   verified_at: string | null;
   unsubscribed_at: string | null;
+  resubscription_requested_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -28,6 +29,8 @@ export interface AdminCreateSubscriberResponse {
   source: string;
   verification_sent_at: string;
   created_at: string;
+  /** false when the subscriber row was saved but the verification email failed to send. */
+  email_sent: boolean;
 }
 
 export interface AdminDeleteSubscriberPayload {
@@ -39,6 +42,6 @@ export interface AdminDeleteSubscriberResponse {
   deletion_mode: 'hard_delete' | 'anonymized';
 }
 
-export type SubscriberAction = 'view' | 'resend' | 'delete';
+export type SubscriberAction = 'view' | 'resend' | 'resubscribe' | 'delete';
 
 export type SubscriberDeletionMode = 'hard_delete' | 'anonymized';

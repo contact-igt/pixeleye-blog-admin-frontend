@@ -53,12 +53,25 @@ function safeError(error: unknown) {
     if (error.status === 409) return 'This media asset is not in the right state for that action.';
     if (error.status === 413) return 'This image is too large for the selected purpose.';
     if (error.status === 415) return 'This image type is not supported or the file is corrupt.';
+    if (error.status === 502 || error.status === 503) return 'The image could not be stored. Please try again.';
+    if (error.message === 'The API request timed out') {
+      return 'The upload response was interrupted. Refresh the Media Library before trying again to avoid uploading a duplicate.';
+    }
+    if (error.message === 'The media upload response was invalid') {
+      return 'The server returned an invalid upload response. Refresh the Media Library before trying again.';
+    }
   }
   return 'Media request failed. Please try again.';
 }
 
 function canUpload(role?: string) {
   return role === 'super_admin' || role === 'editor' || role === 'author';
+}
+
+function createUploadClientId(): string {
+  const random = new Uint32Array(1);
+  crypto.getRandomValues(random);
+  return `${Date.now()}${String(random[0] % 1_000_000).padStart(6, '0')}`;
 }
 
 function canMoveToTrash(asset: MediaAsset, adminId?: string, role?: string) {
@@ -119,12 +132,35 @@ export default function MediaPage() {
 
   useEffect(() => setSearchText(currentParams.search ?? ''), [currentParams.search]);
 
-  const load = async () => {
+  function invalidateInFlightRequests() {
+    requestId.current += 1;
+  }
+
+  function syncAfterUpload() {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('tab');
+    next.delete('search');
+    next.delete('purpose');
+    next.delete('sort_by');
+    next.delete('sort_order');
+    next.set('page', '1');
+    const nextUrl = `${pathname}?${next.toString()}`;
+    const currentUrl = `${pathname}?${searchParams.toString()}`;
+    const canonicalParams: MediaListParams = { page: 1, limit: 24, sort_by: 'created_at', sort_order: 'desc' };
+
+    if (nextUrl !== currentUrl) {
+      startTransition(() => router.replace(nextUrl));
+    }
+
+    void load(canonicalParams, 'active', true);
+  }
+
+  const load = async (params: MediaListParams = currentParams, nextTab: MediaTab = tab, background = false) => {
     const id = ++requestId.current;
-    setLoading(true);
+    if (!background) setLoading(true);
     setError(null);
     try {
-      const result = tab === 'trash' ? await listTrashedMediaAssets(currentParams) : await listMediaAssets(currentParams);
+      const result = nextTab === 'trash' ? await listTrashedMediaAssets(params) : await listMediaAssets(params);
       if (id !== requestId.current) return;
       setItems(result.items);
       setPagination(result.pagination);
@@ -132,7 +168,7 @@ export default function MediaPage() {
       if (id !== requestId.current) return;
       setError(safeError(caught));
     } finally {
-      if (id === requestId.current) setLoading(false);
+      if (id === requestId.current && !background) setLoading(false);
     }
   };
 
@@ -385,9 +421,10 @@ export default function MediaPage() {
         <UploadModal
           onClose={() => setUploadOpen(false)}
           onUploaded={(asset) => {
-            setItems((curr) => [asset, ...curr]);
+            setItems((current) => [asset, ...current.filter((item) => item.id !== asset.id)].slice(0, 24));
             setUploadOpen(false);
-            setNotice('Media asset uploaded.');
+            setNotice('Image uploaded successfully.');
+            syncAfterUpload();
           }}
         />
       )}
@@ -525,7 +562,7 @@ function MediaCard({
           {asset.alt_text ? 'Alt text added' : 'Alt text needed'}
         </p>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
-          <span>{asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'Dimensions unavailable'}</span>
+          <span>{asset.width && asset.height ? `${asset.width} Ã— ${asset.height}` : 'Dimensions unavailable'}</span>
           <span aria-hidden="true" className="text-slate-300">|</span>
           <span>{formatBytes(asset.file_size ?? asset.size_bytes)}</span>
         </div>
@@ -605,15 +642,23 @@ function UploadModal({ onClose, onUploaded }: { onClose(): void; onUploaded(asse
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  const clientIdRef = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview);
+  }, [preview]);
 
   function chooseFile(event: ChangeEvent<HTMLInputElement>) {
     const next = event.target.files?.[0] ?? null;
     setError(null);
     if (!next) return;
     if (!imageTypes.includes(next.type)) {
-      setError('Choose a JPG, PNG, WebP or AVIF image.');
+      setFile(null);
+      setError('Select a supported image file.');
       return;
     }
+    clientIdRef.current = null;
     setFile(next);
     setPreview(URL.createObjectURL(next));
   }
@@ -621,20 +666,29 @@ function UploadModal({ onClose, onUploaded }: { onClose(): void; onUploaded(asse
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!file) {
-      setError('Choose an image file first.');
+      setError('Select a supported image file.');
       return;
     }
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     try {
       const form = new FormData();
       form.set('file', file);
       form.set('purpose', purpose);
+      clientIdRef.current ??= createUploadClientId();
+      form.set('client_id', clientIdRef.current);
       if (altText.trim()) form.set('alt_text', altText.trim());
-      onUploaded(await uploadMediaAsset(form));
+      const uploaded = await uploadMediaAsset(form);
+      setFile(null);
+      setAltText('');
+      setPurpose('hero');
+      onUploaded(uploaded);
     } catch (caught) {
       setError(safeError(caught));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -651,7 +705,7 @@ function UploadModal({ onClose, onUploaded }: { onClose(): void; onUploaded(asse
             Cancel
           </Button>
           <Button variant="primary" onClick={submit} isLoading={busy}>
-            Upload image
+            {busy ? 'Uploading…' : 'Upload Image'}
           </Button>
         </>
       }
@@ -775,7 +829,7 @@ function EditModal({
           <img src={asset.variants.thumbnail?.url ?? asset.original_url ?? ''} alt={altText || fileName} className="h-16 w-16 rounded-lg object-cover" />
           <div className="text-xs text-slate-600">
             <p className="font-semibold text-slate-800">{fileName || asset.original_file_name}</p>
-            <p>{asset.width && asset.height ? `${asset.width} × ${asset.height}` : 'Dimensions unavailable'} | {formatBytes(asset.file_size)}</p>
+            <p>{asset.width && asset.height ? `${asset.width} Ã— ${asset.height}` : 'Dimensions unavailable'} | {formatBytes(asset.file_size)}</p>
           </div>
         </div>
 
@@ -908,4 +962,9 @@ function PreviewModal({
     </Modal>
   );
 }
+
+
+
+
+
 

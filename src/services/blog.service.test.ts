@@ -1,6 +1,6 @@
-﻿import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearAccessToken, setAccessToken } from './auth-token';
-import { createBlog, getBlog, listBlogTemplates, listBlogs, listTrashedBlogs, moveBlogToTrash, publishBlog, restoreBlog, unpublishBlog, updateBlog } from './blog.service';
+import { createBlog, getBlog, listBlogTemplates, listBlogs, listTrashedBlogs, moveBlogToTrash, publishBlog, restoreBlog, unpublishBlog, updateBlog, upgradeBlogCustomTemplate } from './blog.service';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), { status: init.status ?? 200, headers: { 'Content-Type': 'application/json' } });
@@ -34,6 +34,7 @@ describe('blog service', () => {
     await createBlog({ title: 'Eye Care' });
     await getBlog('7');
     await updateBlog('7', { title: 'Eye Care Updated' });
+    await upgradeBlogCustomTemplate('7');
     await publishBlog('7');
     await unpublishBlog('7');
     await moveBlogToTrash('7');
@@ -44,6 +45,7 @@ describe('blog service', () => {
       [expect.stringContaining('/blogs'), 'POST'],
       [expect.stringContaining('/blogs/7'), 'GET'],
       [expect.stringContaining('/blogs/7'), 'PATCH'],
+      [expect.stringContaining('/blogs/7/upgrade-custom-template'), 'POST'],
       [expect.stringContaining('/blogs/7/publish'), 'POST'],
       [expect.stringContaining('/blogs/7/unpublish'), 'POST'],
       [expect.stringContaining('/blogs/7'), 'DELETE'],

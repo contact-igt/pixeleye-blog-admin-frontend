@@ -47,5 +47,15 @@ describe('media service', () => {
     expect(fetchMock.mock.calls[1][1].body).toBeInstanceOf(FormData);
     expect(fetchMock.mock.calls[2][1].method).toBe('DELETE');
   });
+
+  it('accepts a nested upload asset and rejects a malformed success response', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ success: true, data: { asset: media } }, { status: 201 }))
+      .mockResolvedValueOnce(jsonResponse({ success: true, data: {} }, { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(uploadMediaAsset(new FormData())).resolves.toMatchObject({ id: '1' });
+    await expect(uploadMediaAsset(new FormData())).rejects.toThrow('The media upload response was invalid');
+  });
 });
 

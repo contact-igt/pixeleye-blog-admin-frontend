@@ -105,7 +105,45 @@ describe('CustomTemplateRenderer Deterministic Execution', () => {
     const article = document.querySelector('[data-template="custom_template"]')!;
     const sectionBody = article.querySelector('[data-section-id="sec-body"]')!;
     const innerContainer = sectionBody.firstElementChild!;
-    expect(innerContainer.className).toContain('lg:grid-cols-[1fr_340px]');
+    expect(innerContainer.className).toContain('lg:grid-cols-[minmax(0,1fr)_minmax(260px,340px)]');
+  });
+
+  it('maps every Page-level value to the explicit Admin renderer contract', () => {
+    const cases = [
+      [{ contentWidth: 'narrow', background: 'soft_gray', spacing: 'compact', typography: 'modern' }, ['max-w-2xl', 'bg-slate-50', 'space-y-6', 'font-sans']],
+      [{ contentWidth: 'standard', background: 'brand_tint', spacing: 'normal', typography: 'clinical' }, ['max-w-4xl', 'bg-sky-50/40', 'space-y-10', 'font-mono']],
+      [{ contentWidth: 'wide', background: 'white', spacing: 'spacious', typography: 'editorial' }, ['max-w-6xl', 'bg-white', 'space-y-16', 'font-serif']],
+      [{ contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' }, ['max-w-none', 'bg-white', 'space-y-10', 'font-serif']]
+    ] as const;
+
+    for (const [page, expectedClasses] of cases) {
+      const layout = JSON.parse(JSON.stringify(sampleFrontendCustomTemplateConfig));
+      layout.page = page;
+      const view = render(<CustomTemplateRenderer layoutConfig={layout} blocksDoc={sampleFrontendBlocksDoc} isPreview />);
+      const article = view.container.querySelector('[data-template="custom_template"]')!;
+      const pageContainer = article.firstElementChild!;
+      expect(article.className).toContain(expectedClasses[1]);
+      expect(article.className).toContain(expectedClasses[3]);
+      expect(pageContainer.className).toContain(expectedClasses[0]);
+      expect(pageContainer.className).toContain(expectedClasses[2]);
+      view.unmount();
+    }
+  });
+
+  it('uses selected responsive strategy at desktop, tablet, and mobile preview sizes', () => {
+    const layout = JSON.parse(JSON.stringify(sampleFrontendCustomTemplateConfig));
+    layout.sections[1].layout = 'three_column';
+    layout.sections[1].responsiveStrategy = 'three_to_two_to_one';
+    layout.sections[1].slots.push({ id: 'slot-third', name: 'Third', components: [] });
+
+    const desktop = render(<CustomTemplateRenderer layoutConfig={layout} blocksDoc={sampleFrontendBlocksDoc} previewDevice="desktop" isPreview />);
+    expect(desktop.container.querySelector('[data-section-id="sec-body"]')?.firstElementChild?.className).toContain('lg:grid-cols-3');
+    desktop.unmount();
+    const tablet = render(<CustomTemplateRenderer layoutConfig={layout} blocksDoc={sampleFrontendBlocksDoc} previewDevice="tablet" isPreview />);
+    expect(tablet.container.querySelector('[data-section-id="sec-body"]')?.firstElementChild?.className).toContain('grid-cols-2');
+    tablet.unmount();
+    const mobile = render(<CustomTemplateRenderer layoutConfig={layout} blocksDoc={sampleFrontendBlocksDoc} previewDevice="mobile" isPreview />);
+    expect(mobile.container.querySelector('[data-section-id="sec-body"]')?.firstElementChild?.className).toContain('grid-cols-1');
   });
 
   it('renders system components (TOC) without requiring blockId', () => {

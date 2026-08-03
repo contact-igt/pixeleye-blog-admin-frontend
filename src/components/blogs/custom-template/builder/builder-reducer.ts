@@ -3,9 +3,7 @@ import type {
   CustomTemplateLayoutConfigV1,
   CustomTemplateSection,
   CustomTemplateComponentInstance,
-  CustomTemplateSlot,
   CustomTemplateSectionLayout,
-  CustomTemplateResponsiveStrategy,
   RegisteredComponentKey,
   CustomTemplatePageSettings
 } from '../custom-template.types';
@@ -21,8 +19,10 @@ export type BuilderAction =
   | { type: 'remove_section'; sectionId: string }
   | { type: 'duplicate_section'; sectionId: string }
   | { type: 'move_section'; sectionId: string; direction: 'up' | 'down' }
-  | { type: 'update_section'; sectionId: string; updates: Partial<Omit<CustomTemplateSection, 'id' | 'slots'>> }
+  | { type: 'update_section'; sectionId: string; updates: Partial<Omit<CustomTemplateSection, 'id' | 'slots' | 'settings'>> }
+  | { type: 'update_section_settings'; sectionId: string; updates: Partial<NonNullable<CustomTemplateSection['settings']>> }
   | { type: 'apply_pending_layout_reduction' }
+  | { type: 'remove_pending_layout_overflow' }
   | { type: 'cancel_pending_layout_reduction' }
   | { type: 'add_component'; componentKey: RegisteredComponentKey }
   | { type: 'remove_component'; sectionId: string; slotId: string; componentId: string }
@@ -38,7 +38,7 @@ export type BuilderAction =
       toIndex?: number;
     }
   | { type: 'select_element'; element: SelectedElement }
-  | { type: 'update_component'; sectionId: string; slotId: string; componentId: string; updates: any }
+  | { type: 'update_component'; sectionId: string; slotId: string; componentId: string; updates: { enabled?: boolean; settings?: Record<string, unknown> } }
   | { type: 'update_page_settings'; updates: Partial<CustomTemplatePageSettings> }
   | { type: 'update_metadata'; updates: Partial<{ name: string; description: string }> }
   | { type: 'set_preview_device'; device: 'desktop' | 'tablet' | 'mobile' }
@@ -285,37 +285,14 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       };
     }
 
-    case 'apply_pending_layout_reduction': {
-      if (!state.pendingLayoutReduction) return state;
-      const { sectionId, newLayout, newSlotCount } = state.pendingLayoutReduction;
-      const section = state.layout.sections.find((s) => s.id === sectionId);
-      if (!section) return { ...state, pendingLayoutReduction: null };
+    case 'update_section_settings': {
+      const section = state.layout.sections.find((s) => s.id === action.sectionId);
+      if (!section) return state;
 
       const historyUpdate = pushToHistory(state);
-      const existingIds = collectAllIds(state.layout);
-      const newSlots = createDefaultSlots(newLayout, existingIds);
-
-      // Deterministically merge all components into first slot or distribute up to limits
-      const allComponents: CustomTemplateComponentInstance[] = [];
-      section.slots.forEach((oldSlot) => {
-        allComponents.push(...oldSlot.components);
-      });
-
-      // Distribute: fit up to 10 in slot 0, then slot 1 etc.
-      let compIndex = 0;
-      newSlots.forEach((newSlot) => {
-        const slice = allComponents.slice(compIndex, compIndex + 10);
-        newSlot.components = JSON.parse(JSON.stringify(slice));
-        compIndex += slice.length;
-      });
-
-      const overflowWarning = compIndex < allComponents.length
-        ? `Warning: ${allComponents.length - compIndex} component(s) exceeded the capacity limit and were omitted.`
-        : null;
-
       const updatedSections = state.layout.sections.map((s) =>
-        s.id === sectionId
-          ? { ...s, layout: newLayout, slots: newSlots }
+        s.id === action.sectionId
+          ? { ...s, settings: { ...(s.settings || {}), ...action.updates } }
           : s
       );
 
@@ -323,9 +300,73 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
         ...state,
         ...historyUpdate,
         layout: { ...state.layout, sections: updatedSections },
+        isDirty: true,
+        validationMessage: null
+      };
+    }
+
+    case 'apply_pending_layout_reduction': {
+      if (!state.pendingLayoutReduction) return state;
+      const { sectionId, newLayout, newSlotCount } = state.pendingLayoutReduction;
+      const section = state.layout.sections.find((item) => item.id === sectionId);
+      if (!section) return { ...state, pendingLayoutReduction: null };
+
+      const allComponents = section.slots.flatMap((slot) => slot.components);
+      const capacity = newSlotCount * 10;
+      if (allComponents.length > capacity) {
+        return {
+          ...state,
+          validationMessage: `Cannot move all components: ${allComponents.length - capacity} component(s) exceed the new layout capacity. Choose Remove overflow explicitly or cancel.`
+        };
+      }
+
+      const historyUpdate = pushToHistory(state);
+      const newSlots = createDefaultSlots(newLayout, collectAllIds(state.layout));
+      let componentIndex = 0;
+      newSlots.forEach((slot) => {
+        slot.components = JSON.parse(JSON.stringify(allComponents.slice(componentIndex, componentIndex + 10)));
+        componentIndex += slot.components.length;
+      });
+      const updatedSections = state.layout.sections.map((item) => item.id === sectionId
+        ? { ...item, layout: newLayout, slots: newSlots }
+        : item);
+      return {
+        ...state,
+        ...historyUpdate,
+        layout: { ...state.layout, sections: updatedSections },
         pendingLayoutReduction: null,
         isDirty: true,
-        validationMessage: overflowWarning
+        validationMessage: null
+      };
+    }
+
+    case 'remove_pending_layout_overflow': {
+      if (!state.pendingLayoutReduction) return state;
+      const { sectionId, newLayout, newSlotCount } = state.pendingLayoutReduction;
+      const section = state.layout.sections.find((item) => item.id === sectionId);
+      if (!section) return { ...state, pendingLayoutReduction: null };
+
+      const historyUpdate = pushToHistory(state);
+      const allComponents = section.slots.flatMap((slot) => slot.components);
+      const capacity = newSlotCount * 10;
+      const keptComponents = allComponents.slice(0, capacity);
+      const removedCount = allComponents.length - keptComponents.length;
+      const newSlots = createDefaultSlots(newLayout, collectAllIds(state.layout));
+      let componentIndex = 0;
+      newSlots.forEach((slot) => {
+        slot.components = JSON.parse(JSON.stringify(keptComponents.slice(componentIndex, componentIndex + 10)));
+        componentIndex += slot.components.length;
+      });
+      const updatedSections = state.layout.sections.map((item) => item.id === sectionId
+        ? { ...item, layout: newLayout, slots: newSlots }
+        : item);
+      return {
+        ...state,
+        ...historyUpdate,
+        layout: { ...state.layout, sections: updatedSections },
+        pendingLayoutReduction: null,
+        isDirty: true,
+        validationMessage: removedCount > 0 ? `${removedCount} overflow component(s) were explicitly removed during the layout change.` : null
       };
     }
 
@@ -387,7 +428,7 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
         componentKey: action.componentKey,
         enabled: true,
         settings: createDefaultSettings(action.componentKey)
-      } as any;
+      } as unknown as CustomTemplateComponentInstance;
 
       if (definition.category === 'content') {
         // Each content component instance gets its own unique blockId so repeated placements
@@ -657,7 +698,7 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
                   ...c,
                   ...action.updates,
                   settings: { ...c.settings, ...action.updates.settings }
-                };
+                } as CustomTemplateComponentInstance;
               })
             };
           })

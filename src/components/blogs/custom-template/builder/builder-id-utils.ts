@@ -3,6 +3,7 @@ import type {
   CustomTemplateSlot,
   RegisteredComponentKey
 } from '../custom-template.types';
+import { getDefaultComponentSettings } from '../custom-template-settings';
 
 export function generateId(prefix: string, existingIds?: Set<string>): string {
   let attempts = 0;
@@ -72,40 +73,5 @@ export function resolveDuplicateBlockId(
 }
 
 export function createDefaultSettings(componentKey: RegisteredComponentKey): any {
-  switch (componentKey) {
-    case 'hero':
-      return { height: 'standard', alignment: 'left', overlay: 'medium' };
-    case 'rich_article_content':
-      return { fontSize: 'medium', lineHeight: 'relaxed' };
-    case 'key_takeaways':
-      return { variant: 'soft', columns: 'one' };
-    case 'image_comparison':
-      return { columns: 'two', imageRatio: 'landscape' };
-    case 'numbered_list':
-      return { style: 'circle' };
-    case 'expert_quote':
-      return { orientation: 'horizontal', background: 'soft' };
-    case 'medical_cta':
-      return { style: 'navy', buttonLayout: 'inline' };
-    case 'faq':
-      return { layout: 'accordion', defaultOpen: 'none' };
-    case 'feedback':
-      return { showPrompt: true };
-    case 'share':
-      return { alignment: 'center' };
-    case 'medical_disclaimer':
-      return { variant: 'standard' };
-    case 'article_table_of_contents':
-      return { headingLevels: [2, 3, 4], sticky: true };
-    case 'appointment_card':
-      return { heading: 'Book an Appointment', buttonLabel: 'Schedule Now', targetUrl: 'https://example.com/appointments' };
-    case 'newsletter_card':
-      return { heading: 'Subscribe to Newsletter', description: 'Get health tips.', buttonLabel: 'Subscribe' };
-    case 'spacer':
-      return { size: 'medium' };
-    case 'divider':
-      return { style: 'solid' };
-    default:
-      return {};
-  }
+  return getDefaultComponentSettings(componentKey);
 }
