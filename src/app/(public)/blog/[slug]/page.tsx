@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { getPublicBlogBySlug } from '@/services/public-blog.service';
 import { TemplatePreviewRenderer } from '@/components/blogs/templates/template-preview-renderer';
 import { FeedbackWidget } from '@/components/blogs/public/feedback-widget';
 import { NewsletterCard } from '@/components/blogs/public/newsletter-card';
 import type { BlogDetail } from '@/types/blog';
 
-export default function PublicBlogPage({ params }: { params: { slug: string } }) {
+export default function PublicBlogPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const [blog, setBlog] = useState<BlogDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +18,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
       try {
         setLoading(true);
         setError(null);
-        const data = await getPublicBlogBySlug(params.slug);
+        const data = await getPublicBlogBySlug(slug);
         setBlog(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load blog');
@@ -28,7 +29,7 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
     }
 
     fetchBlog();
-  }, [params.slug]);
+  }, [slug]);
 
   if (loading) {
     return (
@@ -81,11 +82,11 @@ export default function PublicBlogPage({ params }: { params: { slug: string } })
       />
 
       <div className="mt-12 pt-8 border-t border-gray-200">
-        <FeedbackWidget slug={params.slug} />
+        <FeedbackWidget slug={slug} />
       </div>
 
       <div className="mt-8">
-        <NewsletterCard slug={params.slug} />
+        <NewsletterCard slug={slug} />
       </div>
     </article>
   );
