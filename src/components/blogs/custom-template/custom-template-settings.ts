@@ -1,6 +1,7 @@
 import { isRegisteredComponentKey } from './component-registry';
 import type {
   CustomTemplateLayoutConfigV1,
+  CustomTemplateContentWidth,
   CustomTemplatePageSettings,
   CustomTemplateResponsiveStrategy,
   CustomTemplateSectionLayout,
@@ -111,6 +112,7 @@ export function normalizeCustomTemplateSettings(rawConfig: unknown): unknown {
   config.page = { ...DEFAULT_CUSTOM_TEMPLATE_PAGE_SETTINGS, ...page };
 
   if (!Array.isArray(config.sections)) return config;
+  let hasMainArticleContent = false;
   config.sections = config.sections.map((rawSection: unknown) => {
     if (!rawSection || typeof rawSection !== 'object' || Array.isArray(rawSection)) return rawSection;
     const section = rawSection as Record<string, any>;
@@ -156,8 +158,18 @@ export function normalizeCustomTemplateSettings(rawConfig: unknown): unknown {
             settings.style = settings.variant === 'dots' ? 'dashed' : settings.variant;
             delete settings.variant;
           }
+          let blockId = component.blockId;
+          if (component.componentKey === 'rich_article_content') {
+            if (!hasMainArticleContent) {
+              hasMainArticleContent = true;
+              blockId = blockId || 'article_content';
+            } else if (!blockId || blockId === 'article_content') {
+              blockId = component.id ? `article_${component.id}` : `rich_article_extra_${Math.random().toString(36).slice(2, 8)}`;
+            }
+          }
           return {
             ...component,
+            ...(blockId ? { blockId } : {}),
             enabled: component.enabled ?? true,
             settings: { ...getDefaultComponentSettings(component.componentKey), ...settings }
           };
@@ -171,6 +183,10 @@ export function normalizeCustomTemplateSettings(rawConfig: unknown): unknown {
 
 export function pageWidthClass(value: CustomTemplatePageSettings['contentWidth']): string {
   return value === 'narrow' ? 'max-w-2xl' : value === 'standard' ? 'max-w-4xl' : value === 'wide' ? 'max-w-6xl' : 'max-w-none';
+}
+
+export function defaultSectionContentWidth(layout?: CustomTemplateSectionLayout): CustomTemplateContentWidth {
+  return layout === 'full_width' ? 'full' : 'wide';
 }
 
 export function pageSpacingClasses(value: CustomTemplatePageSettings['spacing']): { gap: string; padding: string } {
@@ -235,10 +251,12 @@ export function asNormalizedCustomTemplateConfig(rawConfig: unknown): CustomTemp
 
 export function resolveSectionSettings(
   pageSettings: CustomTemplatePageSettings,
-  sectionSettings?: { width?: string; backgroundStyle?: string; paddingTop?: string; paddingBottom?: string; }
+  sectionSettings?: { width?: string; backgroundStyle?: string; paddingTop?: string; paddingBottom?: string; },
+  sectionLayout?: CustomTemplateSectionLayout
 ) {
+  const inheritedWidth = pageSettings.contentWidth === 'full' ? defaultSectionContentWidth(sectionLayout) : pageSettings.contentWidth;
   return {
-    width: sectionSettings?.width && sectionSettings.width !== 'inherit' ? sectionSettings.width : pageSettings.contentWidth,
+    width: sectionSettings?.width && sectionSettings.width !== 'inherit' ? sectionSettings.width : inheritedWidth,
     backgroundStyle: sectionSettings?.backgroundStyle && sectionSettings.backgroundStyle !== 'inherit' ? sectionSettings.backgroundStyle : pageSettings.background,
     paddingTop: sectionSettings?.paddingTop && sectionSettings.paddingTop !== 'inherit' ? sectionSettings.paddingTop : pageSettings.spacing,
     paddingBottom: sectionSettings?.paddingBottom && sectionSettings.paddingBottom !== 'inherit' ? sectionSettings.paddingBottom : pageSettings.spacing,

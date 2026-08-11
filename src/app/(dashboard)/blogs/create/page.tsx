@@ -1,7 +1,7 @@
-﻿import { BlogForm } from '@/components/blogs/blog-form';
+import { BlogForm } from '@/components/blogs/blog-form';
 import { defaultTemplateKey, isSupportedTemplate } from '@/components/blogs/templates/template-registry';
 
-export function requestedTemplate(value?: string | string[]) {
+function requestedTemplate(value?: string | string[]) {
   const key = Array.isArray(value) ? value[0] : value;
   return key && isSupportedTemplate(key, 1) ? key : defaultTemplateKey;
 }

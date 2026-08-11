@@ -64,6 +64,14 @@ export function collectAllIds(layout: CustomTemplateLayoutConfigV1): Set<string>
   return ids;
 }
 
+function hasMainArticleContent(layout: CustomTemplateLayoutConfigV1): boolean {
+  return layout.sections.some((section) =>
+    section.slots.some((slot) =>
+      slot.components.some((component) => component.componentKey === 'rich_article_content' && (component as { blockId?: string }).blockId === 'article_content')
+    )
+  );
+}
+
 function pushToHistory(state: BuilderState): { history: CustomTemplateLayoutConfigV1[]; future: CustomTemplateLayoutConfigV1[] } {
   const newHistory = [...state.history, JSON.parse(JSON.stringify(state.layout))];
   if (newHistory.length > HISTORY_LIMIT) {
@@ -433,7 +441,7 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       if (definition.category === 'content') {
         // Each content component instance gets its own unique blockId so repeated placements
         // of the same componentKey (e.g. two Numbered List sections) hold independent content.
-        baseComponent.blockId = definition.requiredBlockKey === 'article_content' ? 'article_content' : newComponentId;
+        baseComponent.blockId = action.componentKey === 'rich_article_content' && !hasMainArticleContent(state.layout) ? 'article_content' : newComponentId;
       }
 
       const updatedSections = state.layout.sections.map((s) => {
@@ -518,8 +526,7 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       const duplicatedComponent = {
         ...JSON.parse(JSON.stringify(component)),
         id: newComponentId,
-        // Give the duplicate its own blockId so it gets independent content, not the original's
-        // (except Rich Article Content, which always keeps the 'article_content' sentinel).
+        // Give the duplicate its own blockId so it gets independent content, not the original's.
         ...(duplicateBlockId !== undefined ? { blockId: duplicateBlockId } : {})
       };
 

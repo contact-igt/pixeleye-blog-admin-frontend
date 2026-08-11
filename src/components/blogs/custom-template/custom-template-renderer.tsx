@@ -82,11 +82,11 @@ export function CustomTemplateRenderer({
         config.page.background === 'soft_gray' ? 'bg-slate-50' : config.page.background === 'brand_tint' ? 'bg-sky-50/40' : 'bg-white'
       }`}
     >
-      <div className={`mx-auto w-full ${spacing.gap}`}>
+      <div className={`mx-auto w-full ${pageWidthClass(config.page.contentWidth)} ${spacing.gap}`}>
         {config.sections
           .filter((sec) => sec.enabled)
           .map((section) => {
-            const resolved = resolveSectionSettings(config.page, section.settings);
+            const resolved = resolveSectionSettings(config.page, section.settings, section.layout);
             
             return (
               <section
@@ -177,6 +177,7 @@ function RenderComponentInstance({
     const feedbackInstance = instance?.componentKey === 'feedback' ? instance : undefined;
     const shareInstance = instance?.componentKey === 'share' ? instance : undefined;
     const imageComparisonInstance = instance?.componentKey === 'image_comparison' ? instance : undefined;
+    const richArticleInstance = instance?.componentKey === 'rich_article_content' ? instance : undefined;
 
     switch (component.componentKey) {
       case 'hero': {
@@ -226,13 +227,14 @@ function RenderComponentInstance({
       case 'rich_article_content': {
         const settings = component.settings;
         const defaultContent = '<p>Regular eye examinations are essential for maintaining healthy vision. Routine checkups help detect early signs of vision conditions before symptoms appear.</p><p>Protect your eye health by taking regular screen breaks and maintaining balanced nutrition.</p>';
-        const hasText = Boolean(contentHtml && contentHtml.replace(/<[^>]*>/g, '').trim().length > 0);
+        const html = component.blockId === 'article_content' ? contentHtml : richArticleInstance?.html;
+        const hasText = Boolean(html && html.replace(/<[^>]*>/g, '').trim().length > 0);
         return (
           <div
             className={`space-y-4 text-slate-800 ${settings.fontSize === 'large' ? 'text-base' : 'text-sm'} ${
               settings.lineHeight === 'relaxed' ? 'leading-8' : 'leading-6'
             }`}
-            dangerouslySetInnerHTML={{ __html: hasText ? contentHtml! : isPreview ? defaultContent : '<p class="italic text-slate-500">No article content available.</p>' }}
+            dangerouslySetInnerHTML={{ __html: hasText ? html! : isPreview ? defaultContent : '<p class="italic text-slate-500">No article content available.</p>' }}
           />
         );
       }

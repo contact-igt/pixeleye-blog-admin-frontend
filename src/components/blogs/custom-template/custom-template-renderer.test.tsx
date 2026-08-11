@@ -40,6 +40,29 @@ describe('CustomTemplateRenderer Deterministic Execution', () => {
     expect(screen.getByText('Article body text')).toBeInTheDocument();
   });
 
+  it('renders repeated Rich Article Content from custom instance html', () => {
+    const layout = JSON.parse(JSON.stringify(sampleFrontendCustomTemplateConfig));
+    layout.sections[1].slots[0].components.push({
+      id: 'article-extra',
+      componentKey: 'rich_article_content',
+      blockId: 'article_extra',
+      enabled: true,
+      settings: { fontSize: 'medium', lineHeight: 'relaxed' }
+    });
+    const blocksDoc = {
+      ...sampleFrontendBlocksDoc,
+      custom_instances: {
+        ...sampleFrontendBlocksDoc.custom_instances,
+        article_extra: { componentKey: 'rich_article_content' as const, enabled: true as const, content_json: { type: 'doc' as const, content: [{ type: 'paragraph' as const }] }, html: '<p>Second article body</p>' }
+      }
+    };
+
+    render(<CustomTemplateRenderer layoutConfig={layout} blocksDoc={blocksDoc} contentHtml="<p>First article body</p>" isPreview />);
+
+    expect(screen.getByText('First article body')).toBeInTheDocument();
+    expect(screen.getByText('Second article body')).toBeInTheDocument();
+  });
+
   it('preserves section, slot, and component DOM ordering', () => {
     render(
       <CustomTemplateRenderer
@@ -104,8 +127,8 @@ describe('CustomTemplateRenderer Deterministic Execution', () => {
 
     const article = document.querySelector('[data-template="custom_template"]')!;
     const sectionBody = article.querySelector('[data-section-id="sec-body"]')!;
-    const innerContainer = sectionBody.firstElementChild!;
-    expect(innerContainer.className).toContain('lg:grid-cols-[minmax(0,1fr)_minmax(260px,340px)]');
+    const grid = sectionBody.firstElementChild?.firstElementChild!;
+    expect(grid.className).toContain('lg:grid-cols-[minmax(0,1fr)_minmax(260px,340px)]');
   });
 
   it('maps every Page-level value to the explicit Admin renderer contract', () => {
@@ -130,6 +153,20 @@ describe('CustomTemplateRenderer Deterministic Execution', () => {
     }
   });
 
+  it('keeps regular inherited sections max-w-6xl when the page default is full width', () => {
+    const layout = JSON.parse(JSON.stringify(sampleFrontendCustomTemplateConfig));
+    layout.page.contentWidth = 'full';
+
+    render(<CustomTemplateRenderer layoutConfig={layout} blocksDoc={sampleFrontendBlocksDoc} isPreview />);
+
+    const hero = document.querySelector('[data-section-id="sec-hero"]')!;
+    const body = document.querySelector('[data-section-id="sec-body"]')!;
+    expect(hero).toHaveAttribute('data-section-width', 'full');
+    expect(hero.firstElementChild?.className).toContain('max-w-none');
+    expect(body).toHaveAttribute('data-section-width', 'wide');
+    expect(body.firstElementChild?.className).toContain('max-w-6xl');
+  });
+
   it('uses selected responsive strategy at desktop, tablet, and mobile preview sizes', () => {
     const layout = JSON.parse(JSON.stringify(sampleFrontendCustomTemplateConfig));
     layout.sections[1].layout = 'three_column';
@@ -137,13 +174,13 @@ describe('CustomTemplateRenderer Deterministic Execution', () => {
     layout.sections[1].slots.push({ id: 'slot-third', name: 'Third', components: [] });
 
     const desktop = render(<CustomTemplateRenderer layoutConfig={layout} blocksDoc={sampleFrontendBlocksDoc} previewDevice="desktop" isPreview />);
-    expect(desktop.container.querySelector('[data-section-id="sec-body"]')?.firstElementChild?.className).toContain('lg:grid-cols-3');
+    expect(desktop.container.querySelector('[data-section-id="sec-body"]')?.firstElementChild?.firstElementChild?.className).toContain('lg:grid-cols-3');
     desktop.unmount();
     const tablet = render(<CustomTemplateRenderer layoutConfig={layout} blocksDoc={sampleFrontendBlocksDoc} previewDevice="tablet" isPreview />);
-    expect(tablet.container.querySelector('[data-section-id="sec-body"]')?.firstElementChild?.className).toContain('grid-cols-2');
+    expect(tablet.container.querySelector('[data-section-id="sec-body"]')?.firstElementChild?.firstElementChild?.className).toContain('grid-cols-2');
     tablet.unmount();
     const mobile = render(<CustomTemplateRenderer layoutConfig={layout} blocksDoc={sampleFrontendBlocksDoc} previewDevice="mobile" isPreview />);
-    expect(mobile.container.querySelector('[data-section-id="sec-body"]')?.firstElementChild?.className).toContain('grid-cols-1');
+    expect(mobile.container.querySelector('[data-section-id="sec-body"]')?.firstElementChild?.firstElementChild?.className).toContain('grid-cols-1');
   });
 
   it('renders system components (TOC) without requiring blockId', () => {

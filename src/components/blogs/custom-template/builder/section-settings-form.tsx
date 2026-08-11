@@ -64,7 +64,7 @@ export default function SectionSettingsForm({
         />
 
         <Select
-          label="Content Width"
+          label="Section Content Width"
           options={[...SECTION_SETTING_OPTIONS.width]}
           value={section.settings?.width || 'inherit'}
           onChange={(e) => dispatch({ type: 'update_section_settings', sectionId, updates: { width: e.target.value as any } })}

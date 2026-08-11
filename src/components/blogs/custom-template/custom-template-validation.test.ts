@@ -266,6 +266,22 @@ describe('validateFrontendCustomTemplateLayout - parity with backend', () => {
     expect(validateFrontendCustomTemplateLayout(layout).valid).toBe(true);
   });
 
+  it('allows repeated Rich Article Content with a matching custom instance', () => {
+    const layout = cloneSample();
+    layout.sections[1].slots[0].components.push(asComponent({
+      id: 'comp-article-extra', componentKey: 'rich_article_content', blockId: 'article_extra', enabled: true,
+      settings: { fontSize: 'medium', lineHeight: 'relaxed' }
+    }));
+    const blocks = JSON.parse(JSON.stringify(sampleFrontendBlocksDoc));
+    blocks.custom_instances.article_extra = {
+      componentKey: 'rich_article_content',
+      enabled: true,
+      content_json: { type: 'doc', content: [{ type: 'paragraph' }] },
+      html: '<p>Second body</p>'
+    };
+    expect(validateFrontendCustomTemplateLayout(layout, blocks).valid).toBe(true);
+  });
+
   it('rejects unsafe and reserved block IDs', () => {
     const unsafe = cloneSample();
     asMutable(unsafe.sections[0].slots[0].components[0]).blockId = 'hero block';
@@ -296,7 +312,7 @@ describe('validateFrontendCustomTemplateLayout - parity with backend', () => {
     const result = validateFrontendCustomTemplateLayout(layout);
     expect(result.valid).toBe(true);
     expect(result.config?.page).toEqual({ contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' });
-    expect(result.config?.sections[0]).toMatchObject({ enabled: true, responsiveStrategy: 'stack_on_mobile', background: 'white' });
+    expect(result.config?.sections[0]).toMatchObject({ enabled: true, responsiveStrategy: 'stack_on_mobile' });
     expect(result.config?.sections[0].slots[0].components.at(-1)?.settings).toEqual({ size: 'small' });
 
     asMutable(layout).page = { contentWidth: 'teleport', background: 'white', spacing: 'normal', typography: 'editorial' };

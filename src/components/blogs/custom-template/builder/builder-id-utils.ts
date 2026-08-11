@@ -56,11 +56,8 @@ export function createDefaultSlots(
 }
 
 /**
- * Determines the blockId a duplicated component instance should carry. Rich Article Content
- * always uses the fixed 'article_content' sentinel (never a per-instance id, since the renderer
- * and block editor key its content off that sentinel, not off blockId). Other content components
- * get a fresh blockId so the duplicate holds independent content. Components without a blockId
- * (system/structural) stay without one.
+ * Determines the blockId a duplicated component instance should carry. Content duplicates get a
+ * fresh blockId so they hold independent content. Components without a blockId stay without one.
  */
 export function resolveDuplicateBlockId(
   componentKey: RegisteredComponentKey,
@@ -68,7 +65,6 @@ export function resolveDuplicateBlockId(
   newComponentId: string
 ): string | undefined {
   if (!originalBlockId) return undefined;
-  if (componentKey === 'rich_article_content') return 'article_content';
   return newComponentId;
 }
 

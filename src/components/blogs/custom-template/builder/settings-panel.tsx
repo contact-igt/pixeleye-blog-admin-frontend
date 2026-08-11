@@ -6,7 +6,7 @@ import ComponentSettingsForm from './component-settings-form';
 import SectionSettingsForm from './section-settings-form';
 import ValidationPanel from './validation-panel';
 import { Select } from '@/components/ui/select';
-import { PAGE_SETTING_OPTIONS } from '../custom-template-settings';
+import { PAGE_SETTING_OPTIONS, SECTION_SETTING_OPTIONS } from '../custom-template-settings';
 
 interface SettingsPanelProps {
   state: BuilderState;
@@ -22,6 +22,10 @@ export default function SettingsPanel({
   onTabChange
 }: SettingsPanelProps) {
   const selected = state.selectedElement;
+  const selectedSectionId = selected?.type === 'section' || selected?.type === 'slot' || selected?.type === 'component'
+    ? selected.sectionId
+    : null;
+  const selectedSection = selectedSectionId ? state.layout.sections.find((section) => section.id === selectedSectionId) : null;
 
   const tabsList = [
     { id: 'element', label: 'Element' },
@@ -96,6 +100,22 @@ export default function SettingsPanel({
 
         {activeTab === 'page' && (
           <div className="space-y-6">
+            {selectedSection && (
+              <>
+                <div>
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-800 mb-4">Selected Section Styling</h4>
+                  <Select
+                    label="Selected Section Width"
+                    options={[...SECTION_SETTING_OPTIONS.width]}
+                    value={selectedSection.settings?.width || 'inherit'}
+                    onChange={(e) => dispatch({ type: 'update_section_settings', sectionId: selectedSection.id, updates: { width: e.target.value as any } })}
+                  />
+                </div>
+
+                <hr className="border-slate-100" />
+              </>
+            )}
+
             <div>
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-800 mb-4">Template Metadata</h4>
               <div className="space-y-4">
@@ -126,7 +146,7 @@ export default function SettingsPanel({
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-800 mb-4">Page Level Styling</h4>
               <div className="space-y-4">
                 <Select
-                  label="Content Column Width"
+                  label="Default Page Width"
                   options={[...PAGE_SETTING_OPTIONS.contentWidth]}
                   value={state.layout.page.contentWidth}
                   onChange={(e) => dispatch({ type: 'update_page_settings', updates: { contentWidth: e.target.value as any } })}

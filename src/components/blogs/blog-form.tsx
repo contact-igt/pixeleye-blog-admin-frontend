@@ -558,17 +558,19 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
             </div>
           </Card>
 
-          <SectionCard title="Write your article" className="border border-slate-100 bg-white/80 backdrop-blur-md">
-            <RichTextEditor
-              key={blog?.id ?? 'new'}
-              value={form.content}
-              onChange={(json, nextHtml) => {
-                change('content', json);
-                setHtml(nextHtml);
-              }}
-              error={fieldErrors.content}
-            />
-          </SectionCard>
+          {form.templateKey !== 'custom_template' ? (
+            <SectionCard title="Write your article" className="border border-slate-100 bg-white/80 backdrop-blur-md">
+              <RichTextEditor
+                key={blog?.id ?? 'new'}
+                value={form.content}
+                onChange={(json, nextHtml) => {
+                  change('content', json);
+                  setHtml(nextHtml);
+                }}
+                error={fieldErrors.content}
+              />
+            </SectionCard>
+          ) : null}
 
           {form.templateKey === 'custom_template' ? (
             (() => {
@@ -582,7 +584,7 @@ export function BlogForm({ blog, initialTemplateKey = 'template_1' }: { blog?: B
               if (!valid || !config) {
                 return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><Alert variant="error">The selected Custom Template is invalid. {layoutErrors[0]?.message ?? 'Retry loading or choose another active template.'}</Alert></Card>;
               }
-              return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><CustomTemplateBlockEditor layoutConfig={config} value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} onMediaResolved={(id, media) => setBlockMedia((old) => media ? { ...old, [id]: media } : old)} /></Card>;
+              return <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><CustomTemplateBlockEditor layoutConfig={config} value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} onMediaResolved={(id, media) => setBlockMedia((old) => media ? { ...old, [id]: media } : old)} articleContent={form.content} articleHtml={html} articleContentError={fieldErrors.content} onArticleContentChange={(json, nextHtml) => { change('content', json); setHtml(nextHtml); }} /></Card>;
             })()
           ) : ((form.templateKey === 'template_1' && selectedTemplateVersion === 2) || form.templateKey === 'template_2') && <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><BlogBlockEditor value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} onMediaResolved={(id, media) => setBlockMedia((old) => media ? { ...old, [id]: media } : old)} /></Card>}
           {form.templateKey === 'template_2' ? <Card className="space-y-4 border border-slate-100 bg-white/80 p-6 backdrop-blur-md"><TemplateTwoSidebarEditor value={form.blocks} onChange={(blocks) => change('blocks', blocks)} errors={fieldErrors} /></Card> : null}

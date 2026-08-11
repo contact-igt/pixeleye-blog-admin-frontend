@@ -1,4 +1,5 @@
 import { apiRequest, type ApiRequestOptions } from './api-client';
+import { asNormalizedCustomTemplateConfig } from '@/components/blogs/custom-template/custom-template-settings';
 import type { ApiResponse } from '@/types/auth';
 import type {
   CreateCustomTemplatePayload,
@@ -22,13 +23,20 @@ function query(params: Record<string, unknown> = {}): string {
   return stringified ? `?${stringified}` : '';
 }
 
+function withNormalizedLayout<T extends { layout_config_json: unknown }>(payload: T): T {
+  return {
+    ...payload,
+    layout_config_json: asNormalizedCustomTemplateConfig(payload.layout_config_json)
+  };
+}
+
 export async function listCustomTemplates(params: CustomTemplateListParams = {}, options: ApiRequestOptions = {}): Promise<CustomTemplateListResponse> {
   const response = await apiRequest<ApiResponse<CustomTemplateListResponse>>(`/custom-templates${query(params as Record<string, unknown>)}`, { method: 'GET', ...options });
   return response.data;
 }
 
 export async function createCustomTemplate(payload: CreateCustomTemplatePayload, options: ApiRequestOptions = {}): Promise<CustomTemplateDetail> {
-  const response = await apiRequest<ApiResponse<CustomTemplateDetail>>('/custom-templates', { method: 'POST', body: JSON.stringify(payload), ...options });
+  const response = await apiRequest<ApiResponse<CustomTemplateDetail>>('/custom-templates', { method: 'POST', body: JSON.stringify(withNormalizedLayout(payload)), ...options });
   return response.data;
 }
 
@@ -53,7 +61,7 @@ export async function getCustomTemplateVersion(id: string, versionId: string, op
 }
 
 export async function saveCustomTemplateVersion(id: string, payload: SaveCustomTemplateVersionPayload, options: ApiRequestOptions = {}): Promise<CustomTemplateDetail> {
-  const response = await apiRequest<ApiResponse<CustomTemplateDetail>>(`/custom-templates/${encodeURIComponent(id)}/versions`, { method: 'POST', body: JSON.stringify(payload), ...options });
+  const response = await apiRequest<ApiResponse<CustomTemplateDetail>>(`/custom-templates/${encodeURIComponent(id)}/versions`, { method: 'POST', body: JSON.stringify(withNormalizedLayout(payload)), ...options });
   return response.data;
 }
 
