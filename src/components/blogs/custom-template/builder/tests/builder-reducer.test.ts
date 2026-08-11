@@ -16,6 +16,17 @@ describe('builderReducer tests', () => {
     state = builderReducer(state, { type: 'update_section', sectionId, updates: { background: 'slate' } });
     expect(state.layout.page).toEqual({ contentWidth: 'narrow', background: 'brand_tint', spacing: 'spacious', typography: 'clinical' });
   });
+
+  it('updates only the target section width', () => {
+    const layout = JSON.parse(JSON.stringify(sampleFrontendCustomTemplateConfig));
+    let state: BuilderState = { ...initialState, layout };
+    state = builderReducer(state, { type: 'update_section_settings', sectionId: 'sec-body', updates: { width: 'standard' } });
+
+    expect(state.layout.page.contentWidth).toBe(sampleFrontendCustomTemplateConfig.page.contentWidth);
+    expect(state.layout.sections.find((section) => section.id === 'sec-hero')?.settings?.width).toBeUndefined();
+    expect(state.layout.sections.find((section) => section.id === 'sec-body')?.settings?.width).toBe('standard');
+  });
+
   it('should support replace_layout', () => {
     const layout = JSON.parse(JSON.stringify(sampleFrontendCustomTemplateConfig));
     const nextState = builderReducer(initialState, { type: 'replace_layout', layout });
@@ -158,7 +169,7 @@ describe('builderReducer tests', () => {
     expect(state.layout.sections.length).toBe(1);
   });
 
-  it('should preserve the article_content sentinel when duplicating a rich_article_content component', () => {
+  it('should keep the first rich_article_content sentinel and give duplicates independent blockIds', () => {
     let state = builderReducer(initialState, { type: 'add_section', layoutType: 'full_width' });
     const sectionId = state.layout.sections[0].id;
     const slotId = state.layout.sections[0].slots[0].id;
@@ -171,11 +182,11 @@ describe('builderReducer tests', () => {
     state = builderReducer(state, { type: 'duplicate_component', sectionId, slotId, componentId: originalId });
     const [original, duplicate] = state.layout.sections[0].slots[0].components;
     expect((original as { blockId?: string }).blockId).toBe('article_content');
-    expect((duplicate as { blockId?: string }).blockId).toBe('article_content');
+    expect((duplicate as { blockId?: string }).blockId).toBe(duplicate.id);
     expect(duplicate.id).not.toBe(original.id);
   });
 
-  it('should preserve the article_content sentinel when duplicating a section containing rich_article_content', () => {
+  it('should give duplicated section rich_article_content independent blockIds', () => {
     let state = builderReducer(initialState, { type: 'add_section', layoutType: 'full_width' });
     const sectionId = state.layout.sections[0].id;
     const slotId = state.layout.sections[0].slots[0].id;
@@ -186,7 +197,7 @@ describe('builderReducer tests', () => {
     state = builderReducer(state, { type: 'duplicate_section', sectionId });
     expect(state.layout.sections.length).toBe(2);
     const duplicatedComponent = state.layout.sections[1].slots[0].components[0] as { blockId?: string };
-    expect(duplicatedComponent.blockId).toBe('article_content');
+    expect(duplicatedComponent.blockId).toBe(state.layout.sections[1].slots[0].components[0].id);
   });
 
   it('should give a duplicated non-sentinel content component a fresh, unique blockId', () => {

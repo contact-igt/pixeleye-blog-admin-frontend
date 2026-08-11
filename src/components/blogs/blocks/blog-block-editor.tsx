@@ -1,6 +1,7 @@
 'use client';
 
-import { CheckCircle2, Circle } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Input, Textarea } from '@/components/ui/input';
 import type { BlogBlocksDocument } from '@/types/blog-blocks';
 import type { MediaAsset } from '@/types/media';
@@ -15,8 +16,25 @@ export function fieldError(errors: Record<string, string>, path: string) {
 }
 
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
-  const isDisableAction = label === 'Disable';
-  return <label className={`inline-flex items-center gap-2 text-xs font-bold ${isDisableAction ? 'text-rose-600' : 'text-slate-600'}`}><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-sky-600" />{label}</label>;
+  const isDisableAction = label === 'Disable' || (label === 'Enable' && checked);
+  const displayLabel = (label === 'Disable' || label === 'Enable') ? (checked ? 'Disable' : 'Enable') : label;
+  return (
+    <label
+      onClick={(e) => e.stopPropagation()}
+      className={`inline-flex items-center gap-2 text-xs font-bold ${isDisableAction ? 'text-rose-600' : 'text-slate-600'} cursor-pointer`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => {
+          event.stopPropagation();
+          onChange(event.target.checked);
+        }}
+        className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+      />
+      {displayLabel}
+    </label>
+  );
 }
 
 function parseReadingTimeMinutes(value: string) {
@@ -33,13 +51,45 @@ export function Section({ title, enabled = true, required = false, complete, onE
   onEnabledChange?: (enabled: boolean) => void;
   children: React.ReactNode;
 }) {
-  return <details open className="rounded-2xl border border-slate-200 bg-white p-4">
-    <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-      <span className="flex items-center gap-2 text-sm font-bold text-slate-900">{complete ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Circle size={16} className="text-slate-300" />}{title}</span>
-      {required ? <span className="text-[10px] font-bold uppercase tracking-wide text-sky-700">Required</span> : onEnabledChange ? <Toggle checked={enabled} onChange={onEnabledChange} label={enabled ? 'Disable' : 'Enable'} /> : null}
-    </summary>
-    {(required || enabled) && <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">{children}</div>}
-  </details>;
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <details
+      open={isOpen}
+      onToggle={(e) => {
+        setIsOpen((e.target as HTMLDetailsElement).open);
+      }}
+      className="rounded-2xl border border-slate-200 bg-white p-4"
+    >
+      <summary
+        onClick={(e) => {
+          e.preventDefault();
+          setIsOpen((prev) => !prev);
+        }}
+        className="flex cursor-pointer list-none items-center justify-between gap-3 select-none"
+      >
+        <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
+          {complete ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Circle size={16} className="text-slate-300" />}
+          {title}
+        </span>
+        <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+          {required ? (
+            <span className="text-[10px] font-bold uppercase tracking-wide text-sky-700">Required</span>
+          ) : onEnabledChange ? (
+            <Toggle checked={enabled} onChange={onEnabledChange} label={enabled ? 'Disable' : 'Enable'} />
+          ) : null}
+          <span className="text-slate-400 hover:text-slate-600">
+            {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </span>
+        </div>
+      </summary>
+      {(required || enabled) && (
+        <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
+          {children}
+        </div>
+      )}
+    </details>
+  );
 }
 
 interface FieldsProps<T> {

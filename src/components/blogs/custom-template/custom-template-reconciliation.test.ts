@@ -36,4 +36,40 @@ describe('Custom Template Blog block reconciliation', () => {
     const result = reconcileCustomTemplateBlocks(layout, blocks, { keepOrphans: false });
     expect(result.document.custom_instances).not.toHaveProperty('old_faq');
   });
+
+  it('initializes repeated Rich Article Content custom instances', () => {
+    const layout = cloneLayout();
+    layout.sections[1].slots[0].components.push({
+      id: 'article-extra',
+      componentKey: 'rich_article_content',
+      blockId: 'article_extra',
+      enabled: true,
+      settings: { fontSize: 'medium', lineHeight: 'relaxed' }
+    });
+    const result = reconcileCustomTemplateBlocks(layout, createDefaultBlogBlocks());
+    expect(result.document.custom_instances?.article_extra).toMatchObject({ componentKey: 'rich_article_content', html: '' });
+  });
+
+  it('initializes Image Comparison with editable before and after rows', () => {
+    const layout = cloneLayout();
+    layout.sections[1].slots[0].components.push({
+      id: 'comparison',
+      componentKey: 'image_comparison',
+      blockId: 'comparison',
+      enabled: true,
+      settings: { columns: 'two', imageRatio: 'landscape' }
+    });
+
+    const result = reconcileCustomTemplateBlocks(layout, createDefaultBlogBlocks());
+
+    expect(result.document.custom_instances?.comparison).toMatchObject({
+      componentKey: 'image_comparison',
+      enabled: true,
+      heading: 'Treatment Comparison',
+      items: [
+        { media_id: null, title: 'Before Treatment', description: '' },
+        { media_id: null, title: 'After Treatment', description: '' }
+      ]
+    });
+  });
 });

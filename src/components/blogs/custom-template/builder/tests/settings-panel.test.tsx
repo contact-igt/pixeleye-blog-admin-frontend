@@ -31,7 +31,7 @@ describe('Settings Panel view tests', () => {
       />
     );
 
-    expect(screen.getByText(/Content Column Width/i)).toBeInTheDocument();
+    expect(screen.getByText(/Default Page Width/i)).toBeInTheDocument();
     expect(screen.getByText(/Page Background Style/i)).toBeInTheDocument();
   });
 
@@ -39,7 +39,7 @@ describe('Settings Panel view tests', () => {
     const dispatch = vi.fn();
     render(<SettingsPanel state={initialState} dispatch={dispatch} activeTab="page" onTabChange={() => {}} />);
 
-    fireEvent.change(screen.getByLabelText('Content Column Width'), { target: { value: 'narrow' } });
+    fireEvent.change(screen.getByLabelText('Default Page Width'), { target: { value: 'narrow' } });
     fireEvent.change(screen.getByLabelText('Page Background Style'), { target: { value: 'brand_tint' } });
     fireEvent.change(screen.getByLabelText('Vertical Section Spacing'), { target: { value: 'spacious' } });
     fireEvent.change(screen.getByLabelText('Typography Variant'), { target: { value: 'clinical' } });
@@ -50,6 +50,28 @@ describe('Settings Panel view tests', () => {
       { type: 'update_page_settings', updates: { spacing: 'spacious' } },
       { type: 'update_page_settings', updates: { typography: 'clinical' } }
     ]);
+  });
+
+  it('dispatches Layout tab selected section width without updating Page width', () => {
+    const dispatch = vi.fn();
+    const state = {
+      ...initialState,
+      layout: sampleFrontendCustomTemplateConfig,
+      selectedElement: { type: 'section' as const, sectionId: 'sec-body' }
+    };
+    render(<SettingsPanel state={state} dispatch={dispatch} activeTab="page" onTabChange={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText('Selected Section Width'), { target: { value: 'standard' } });
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'update_section_settings',
+      sectionId: 'sec-body',
+      updates: { width: 'standard' }
+    });
+    expect(dispatch).not.toHaveBeenCalledWith({
+      type: 'update_page_settings',
+      updates: { contentWidth: 'standard' }
+    });
   });
 
   it('dispatches Section-level selections only for the selected Section identity', () => {
@@ -70,7 +92,7 @@ describe('Settings Panel view tests', () => {
       { type: 'update_section', sectionId: 'sec-body', updates: { enabled: false } },
       { type: 'update_section', sectionId: 'sec-body', updates: { layout: 'two_column' } },
       { type: 'update_section', sectionId: 'sec-body', updates: { responsiveStrategy: 'equal_columns' } },
-      { type: 'update_section', sectionId: 'sec-body', updates: { background: 'sky' } }
+      { type: 'update_section_settings', sectionId: 'sec-body', updates: { backgroundStyle: 'sky' } }
     ]);
   });
 });

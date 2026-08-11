@@ -10,8 +10,26 @@ import {
   restoreCustomTemplate,
   saveCustomTemplateVersion
 } from './custom-templates.service';
+import type { CustomTemplateLayoutConfigV1 } from '@/components/blogs/custom-template/custom-template.types';
 
 function response(data: unknown) { return new Response(JSON.stringify({ success: true, data }), { status: 200, headers: { 'Content-Type': 'application/json' } }); }
+
+function layout(): CustomTemplateLayoutConfigV1 {
+  return {
+    schemaVersion: 1,
+    layoutId: 'service-layout',
+    metadata: { name: 'Service Layout', description: 'Payload check.' },
+    page: { contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' },
+    sections: [{
+      id: 'section-main',
+      layout: 'full_width',
+      responsiveStrategy: 'stack_on_mobile',
+      enabled: true,
+      background: 'sky',
+      slots: [{ id: 'slot-main', name: 'Main', components: [] }]
+    }]
+  };
+}
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
@@ -29,10 +47,18 @@ describe('custom-templates.service', () => {
   it('creates a Custom Template via POST', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({ id: '30' }));
     vi.stubGlobal('fetch', fetchMock);
-    await createCustomTemplate({ name: 'X', layout_config_json: {} as never });
+    await createCustomTemplate({ name: 'X', layout_config_json: layout() });
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toContain('/custom-templates');
     expect((init as RequestInit).method).toBe('POST');
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body.layout_config_json.sections[0].settings).toEqual({
+      width: 'inherit',
+      backgroundStyle: 'sky',
+      paddingTop: 'inherit',
+      paddingBottom: 'inherit'
+    });
+    expect(body.layout_config_json.sections[0]).not.toHaveProperty('background');
   });
 
   it('fetches Custom Template detail via GET', async () => {
@@ -45,10 +71,14 @@ describe('custom-templates.service', () => {
   it('saves a new version via POST to /versions', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({ id: '30' }));
     vi.stubGlobal('fetch', fetchMock);
-    await saveCustomTemplateVersion('30', { layout_config_json: {} as never, expected_lock_version: 1 });
+    const versionLayout = layout();
+    versionLayout.sections[0].settings = { width: 'standard', backgroundStyle: 'sky' };
+    await saveCustomTemplateVersion('30', { layout_config_json: versionLayout, expected_lock_version: 1 });
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toContain('/custom-templates/30/versions');
     expect((init as RequestInit).method).toBe('POST');
+    const body = JSON.parse(String((init as RequestInit).body));
+    expect(body.layout_config_json.sections[0].settings).toMatchObject({ width: 'standard', backgroundStyle: 'sky' });
   });
 
   it('calls the correct lifecycle endpoints', async () => {

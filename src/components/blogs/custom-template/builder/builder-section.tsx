@@ -29,7 +29,7 @@ export default function BuilderSection({
   pageSettings
 }: BuilderSectionProps) {
   const isSelected = selectedElement?.type === 'section' && selectedElement.sectionId === section.id;
-  const resolved = pageSettings ? resolveSectionSettings(pageSettings, section.settings) : { width: 'full', backgroundStyle: section.background || 'white', paddingTop: 'normal', paddingBottom: 'normal' };
+  const resolved = pageSettings ? resolveSectionSettings(pageSettings, section.settings, section.layout) : { width: 'full', backgroundStyle: section.background || 'white', paddingTop: 'normal', paddingBottom: 'normal' };
 
   const handleSelect = (e: React.MouseEvent) => {
     e.stopPropagation();

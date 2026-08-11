@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
+import type { TipTapDocument } from '@/types/blog';
 import type { BlogBlocksDocument, CustomBlockInstanceContent } from '@/types/blog-blocks';
 import { createDefaultCustomInstanceContent } from '@/types/blog-blocks';
 import type { MediaAsset } from '@/types/media';
+import { RichTextEditor } from '../rich-text-editor';
 import {
   ExpertQuoteFields,
   FaqFields,
@@ -20,7 +22,7 @@ import type { CustomTemplateComponentInstance, CustomTemplateLayoutConfigV1 } fr
 
 export interface EditableInstance {
   blockId: string;
-  componentKey: Exclude<Extract<CustomTemplateComponentInstance, { blockId: string }>['componentKey'], 'rich_article_content'>;
+  componentKey: CustomBlockInstanceContent['componentKey'];
   label: string;
 }
 
@@ -34,9 +36,17 @@ export function collectEditableInstances(config: CustomTemplateLayoutConfigV1): 
       for (const component of slot.components) {
         if (component.enabled === false || !isRegisteredComponentKey(component.componentKey)) continue;
         const definition = getComponentDefinition(component.componentKey);
-        if (!definition.editableInBlog || !definition.requiresBlockId || definition.requiredBlockKey === 'article_content') continue;
-        const blockId = (component as { blockId?: string }).blockId;
-        if (!blockId || seenBlockIds.has(blockId)) continue;
+        if (!definition.requiresBlockId) continue;
+        if (!definition.editableInBlog && component.componentKey !== 'rich_article_content') continue;
+        let blockId = (component as { blockId?: string }).blockId;
+        if (!blockId) continue;
+        if (seenBlockIds.has(blockId)) {
+          if (component.componentKey === 'rich_article_content') {
+            blockId = component.id ? `article_${component.id}` : `rich_article_extra_${seenBlockIds.size}`;
+          } else {
+            continue;
+          }
+        }
         seenBlockIds.add(blockId);
         instances.push({ blockId, componentKey: component.componentKey as EditableInstance['componentKey'], label: definition.displayName });
         counts.set(component.componentKey, (counts.get(component.componentKey) ?? 0) + 1);
@@ -55,6 +65,7 @@ export function collectEditableInstances(config: CustomTemplateLayoutConfigV1): 
 function isComplete(instance: CustomBlockInstanceContent): boolean {
   switch (instance.componentKey) {
     case 'hero': return Boolean(instance.category || instance.breadcrumb.length || instance.reviewer.name || instance.reading_time_minutes);
+    case 'rich_article_content': return Boolean(instance.html.replace(/<[^>]*>/g, '').trim());
     case 'key_takeaways': return !instance.enabled || Boolean(instance.heading && instance.items.length);
     case 'image_comparison': return !instance.enabled || Boolean(instance.heading && instance.items.length);
     case 'numbered_list': return !instance.enabled || Boolean(instance.heading && instance.items.length);
@@ -67,19 +78,23 @@ function isComplete(instance: CustomBlockInstanceContent): boolean {
   }
 }
 
-export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, errors = {}, onMediaResolved }: {
+export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, errors = {}, onMediaResolved, articleContent, articleHtml, onArticleContentChange, articleContentError }: {
   layoutConfig: CustomTemplateLayoutConfigV1;
   value: BlogBlocksDocument;
   onChange: (value: BlogBlocksDocument) => void;
   errors?: Record<string, string>;
   onMediaResolved?: (id: string, media: MediaAsset | null) => void;
+  articleContent?: TipTapDocument;
+  articleHtml?: string;
+  onArticleContentChange?: (value: TipTapDocument, html: string) => void;
+  articleContentError?: string;
 }) {
   const editableInstances = collectEditableInstances(layoutConfig);
   const setInstance = (blockId: string, next: CustomBlockInstanceContent) =>
     onChange({ ...value, custom_instances: { ...value.custom_instances, [blockId]: next } });
 
   useEffect(() => {
-    const missing = editableInstances.filter(({ blockId, componentKey }) => value.custom_instances?.[blockId]?.componentKey !== componentKey);
+    const missing = editableInstances.filter(({ blockId, componentKey }) => blockId !== 'article_content' && value.custom_instances?.[blockId]?.componentKey !== componentKey);
     if (missing.length === 0) return;
     onChange({
       ...value,
@@ -102,10 +117,22 @@ export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, error
     <div><h2 id="article-sections-heading" className="text-base font-bold text-slate-900">Article Sections</h2><p className="mt-1 text-xs text-slate-500">Content for the enabled sections defined by this Custom Template.</p></div>
 
     {editableInstances.map(({ blockId, componentKey, label }) => {
-      const stored = value.custom_instances?.[blockId];
+      const stored = blockId === 'article_content' ? undefined : value.custom_instances?.[blockId];
       const instance = stored?.componentKey === componentKey ? stored : createDefaultCustomInstanceContent(componentKey);
       const fieldPrefix = `blocks_json.custom_instances.${blockId}`;
       const key = `instance-${blockId}`;
+
+      if (instance.componentKey === 'rich_article_content') {
+        const isMainArticleContent = blockId === 'article_content';
+        const mainArticleHasText = Boolean(articleHtml?.replace(/<[^>]*>/g, '').trim());
+        return <Section key={key} title={label} required complete={isMainArticleContent ? mainArticleHasText : isComplete(instance)}>
+          <RichTextEditor
+            value={isMainArticleContent ? articleContent : instance.content_json}
+            onChange={(content_json, html) => isMainArticleContent ? onArticleContentChange?.(content_json, html) : setInstance(blockId, { componentKey: 'rich_article_content', enabled: true, content_json, html })}
+            error={isMainArticleContent ? articleContentError : errors[`${fieldPrefix}.html`] ?? errors[`${fieldPrefix}.content_json`]}
+          />
+        </Section>;
+      }
 
       if (instance.componentKey === 'hero') {
         return <Section key={key} title={label} required complete={isComplete(instance)}>
