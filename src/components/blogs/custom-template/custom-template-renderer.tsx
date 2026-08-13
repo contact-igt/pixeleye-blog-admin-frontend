@@ -226,8 +226,10 @@ function RenderComponentInstance({
 
       case 'rich_article_content': {
         const settings = component.settings;
+        const isMainArticleContent = component.blockId === 'article_content';
         const defaultContent = '<p>Regular eye examinations are essential for maintaining healthy vision. Routine checkups help detect early signs of vision conditions before symptoms appear.</p><p>Protect your eye health by taking regular screen breaks and maintaining balanced nutrition.</p>';
-        const html = component.blockId === 'article_content' ? contentHtml : richArticleInstance?.html;
+        if (!isMainArticleContent && richArticleInstance?.enabled === false && !isPreview) return null;
+        const html = isMainArticleContent ? contentHtml : richArticleInstance?.html;
         const hasText = Boolean(html && html.replace(/<[^>]*>/g, '').trim().length > 0);
         return (
           <div
