@@ -65,7 +65,7 @@ export function collectEditableInstances(config: CustomTemplateLayoutConfigV1): 
 function isComplete(instance: CustomBlockInstanceContent): boolean {
   switch (instance.componentKey) {
     case 'hero': return Boolean(instance.category || instance.breadcrumb.length || instance.reviewer.name || instance.reading_time_minutes);
-    case 'rich_article_content': return Boolean(instance.html.replace(/<[^>]*>/g, '').trim());
+    case 'rich_article_content': return !instance.enabled || Boolean(instance.html.replace(/<[^>]*>/g, '').trim());
     case 'key_takeaways': return !instance.enabled || Boolean(instance.heading && instance.items.length);
     case 'image_comparison': return !instance.enabled || Boolean(instance.heading && instance.items.length);
     case 'numbered_list': return !instance.enabled || Boolean(instance.heading && instance.items.length);
@@ -124,12 +124,23 @@ export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, error
 
       if (instance.componentKey === 'rich_article_content') {
         const isMainArticleContent = blockId === 'article_content';
-        const mainArticleHasText = Boolean(articleHtml?.replace(/<[^>]*>/g, '').trim());
-        return <Section key={key} title={label} required complete={isMainArticleContent ? mainArticleHasText : isComplete(instance)}>
+        if (isMainArticleContent) {
+          const mainArticleHasText = Boolean(articleHtml?.replace(/<[^>]*>/g, '').trim());
+          return <Section key={key} title={label} required complete={mainArticleHasText}>
+            <RichTextEditor
+              value={articleContent}
+              onChange={(content_json, html) => onArticleContentChange?.(content_json, html)}
+              error={articleContentError}
+            />
+          </Section>;
+        }
+        const richEnabled = instance.enabled;
+        const onRichEnabledChange = (nextEnabled: boolean) => setInstance(blockId, { ...instance, enabled: nextEnabled });
+        return <Section key={key} title={label} enabled={richEnabled} complete={isComplete(instance)} onEnabledChange={onRichEnabledChange}>
           <RichTextEditor
-            value={isMainArticleContent ? articleContent : instance.content_json}
-            onChange={(content_json, html) => isMainArticleContent ? onArticleContentChange?.(content_json, html) : setInstance(blockId, { componentKey: 'rich_article_content', enabled: true, content_json, html })}
-            error={isMainArticleContent ? articleContentError : errors[`${fieldPrefix}.html`] ?? errors[`${fieldPrefix}.content_json`]}
+            value={instance.content_json}
+            onChange={(content_json, html) => setInstance(blockId, { componentKey: 'rich_article_content', enabled: instance.enabled, content_json, html })}
+            error={errors[`${fieldPrefix}.html`] ?? errors[`${fieldPrefix}.content_json`]}
           />
         </Section>;
       }
