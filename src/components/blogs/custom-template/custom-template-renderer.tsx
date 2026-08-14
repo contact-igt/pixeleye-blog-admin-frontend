@@ -178,6 +178,7 @@ function RenderComponentInstance({
     const shareInstance = instance?.componentKey === 'share' ? instance : undefined;
     const imageComparisonInstance = instance?.componentKey === 'image_comparison' ? instance : undefined;
     const richArticleInstance = instance?.componentKey === 'rich_article_content' ? instance : undefined;
+    const tableInstance = instance?.componentKey === 'table' ? instance : undefined;
 
     switch (component.componentKey) {
       case 'hero': {
@@ -407,6 +408,65 @@ function RenderComponentInstance({
                   <p className="mt-1 text-xs text-slate-600 break-words">{item.description}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        );
+      }
+
+      case 'table': {
+        const tbl = tableInstance;
+        const active = tbl && tbl.enabled && tbl.headers.length > 0 && tbl.rows.length > 0
+          ? tbl
+          : isPreview
+            ? {
+                enabled: true,
+                heading: tbl?.heading || 'Comparison Table',
+                content: tbl?.content || '',
+                headers: ['Feature', 'Option A', 'Option B'],
+                rows: [
+                  ['Recovery Time', '1 day', '3 days'],
+                  ['Success Rate', '99%', '97%']
+                ]
+              }
+            : null;
+        if (!active) return null;
+        const settings = component.settings;
+        const alignClass = settings.alignment === 'center' ? 'text-center' : 'text-left';
+        const headerClass =
+          settings.headerStyle === 'dark_slate'
+            ? 'bg-slate-900 text-white'
+            : settings.headerStyle === 'light_gray'
+              ? 'bg-slate-100 text-slate-700'
+              : 'bg-sky-50 text-sky-900';
+        const tableBorderClass = settings.variant === 'bordered' ? 'border border-slate-300' : '';
+        const cellBorderClass = settings.variant === 'bordered' ? 'border border-slate-200' : 'border-b border-slate-100';
+        return (
+          <div className="space-y-3 w-full min-w-0 overflow-hidden">
+            {active.heading && <h2 className="text-xl font-bold text-slate-900 break-words">{active.heading}</h2>}
+            {active.content && <p className="text-sm text-slate-600 break-words">{active.content}</p>}
+            <div className="w-full overflow-x-auto">
+              <table className={`w-full min-w-[480px] border-collapse text-sm ${tableBorderClass}`}>
+                <thead>
+                  <tr>
+                    {active.headers.map((header, idx) => (
+                      <th key={`th-${idx}`} scope="col" className={`px-4 py-2.5 font-bold whitespace-normal break-words ${alignClass} ${headerClass} ${cellBorderClass}`}>
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {active.rows.map((row, rowIdx) => (
+                    <tr key={`tr-${rowIdx}`} className={settings.variant === 'striped' && rowIdx % 2 === 1 ? 'bg-slate-50' : ''}>
+                      {row.map((cell, cellIdx) => (
+                        <td key={`td-${rowIdx}-${cellIdx}`} className={`px-4 py-2.5 text-slate-700 whitespace-normal break-words ${alignClass} ${cellBorderClass}`}>
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         );

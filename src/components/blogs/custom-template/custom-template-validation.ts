@@ -81,6 +81,12 @@ function checkBoolean(value: unknown, path: string, label: string, errors: Front
   }
 }
 
+function checkIntRange(value: unknown, min: number, max: number, path: string, label: string, errors: FrontendValidationError[]): void {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) {
+    errors.push({ path, message: `${label} must be an integer between ${min} and ${max}.` });
+  }
+}
+
 function checkSafeUrl(value: unknown, path: string, label: string, errors: FrontendValidationError[]): void {
   if (typeof value !== 'string') {
     errors.push({ path, message: `${label} must be a string.` });
@@ -161,6 +167,14 @@ const SETTINGS_VALIDATORS: Record<string, SettingsValidator> = {
   medical_disclaimer: (s, path, errors) => {
     checkNoUnknownKeys(s, ['variant'], path, 'Medical Disclaimer settings', errors);
     checkEnum(s.variant, ['standard', 'prominent'] as const, `${path}.variant`, 'variant', errors);
+  },
+  table: (s, path, errors) => {
+    checkNoUnknownKeys(s, ['variant', 'headerStyle', 'alignment', 'maxRows', 'maxColumns'], path, 'Table settings', errors);
+    checkEnum(s.variant, ['striped', 'bordered', 'clean'] as const, `${path}.variant`, 'variant', errors);
+    checkEnum(s.headerStyle, ['brand_sky', 'dark_slate', 'light_gray'] as const, `${path}.headerStyle`, 'headerStyle', errors);
+    checkEnum(s.alignment, ['left', 'center'] as const, `${path}.alignment`, 'alignment', errors);
+    checkIntRange(s.maxRows, 1, 50, `${path}.maxRows`, 'maxRows', errors);
+    checkIntRange(s.maxColumns, 1, 10, `${path}.maxColumns`, 'maxColumns', errors);
   },
   article_table_of_contents: (s, path, errors) => {
     checkNoUnknownKeys(s, ['headingLevels', 'sticky'], path, 'Table of Contents settings', errors);

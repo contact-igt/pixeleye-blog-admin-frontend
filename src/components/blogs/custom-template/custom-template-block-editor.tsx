@@ -15,15 +15,17 @@ import {
   MedicalCtaFields,
   MedicalDisclaimerFields,
   NumberedListFields,
-  Section
+  Section,
+  TableFields
 } from '../blocks/blog-block-editor';
 import { getComponentDefinition, isRegisteredComponentKey } from './component-registry';
-import type { CustomTemplateComponentInstance, CustomTemplateLayoutConfigV1 } from './custom-template.types';
+import type { CustomTemplateComponentInstance, CustomTemplateLayoutConfigV1, TableSettings } from './custom-template.types';
 
 export interface EditableInstance {
   blockId: string;
   componentKey: CustomBlockInstanceContent['componentKey'];
   label: string;
+  settings: Record<string, unknown>;
 }
 
 export function collectEditableInstances(config: CustomTemplateLayoutConfigV1): EditableInstance[] {
@@ -48,7 +50,7 @@ export function collectEditableInstances(config: CustomTemplateLayoutConfigV1): 
           }
         }
         seenBlockIds.add(blockId);
-        instances.push({ blockId, componentKey: component.componentKey as EditableInstance['componentKey'], label: definition.displayName });
+        instances.push({ blockId, componentKey: component.componentKey as EditableInstance['componentKey'], label: definition.displayName, settings: component.settings as unknown as Record<string, unknown> });
         counts.set(component.componentKey, (counts.get(component.componentKey) ?? 0) + 1);
       }
     }
@@ -75,7 +77,20 @@ function isComplete(instance: CustomBlockInstanceContent): boolean {
     case 'medical_disclaimer': return Boolean(instance.text.trim());
     case 'feedback': return !instance.enabled || Boolean(instance.prompt.trim());
     case 'share': return true;
+    case 'table': return !instance.enabled || Boolean(instance.headers.length && instance.rows.length && instance.rows.every((row) => row.length === instance.headers.length));
   }
+}
+
+function clampTableToCapacity(instance: Extract<CustomBlockInstanceContent, { componentKey: 'table' }>, settings: Record<string, unknown>): Extract<CustomBlockInstanceContent, { componentKey: 'table' }> {
+  const maxRows = Number((settings as Partial<TableSettings>).maxRows ?? 4);
+  const maxColumns = Number((settings as Partial<TableSettings>).maxColumns ?? 4);
+  if (instance.headers.length <= maxColumns && instance.rows.length <= maxRows) return instance;
+  const headers = instance.headers.slice(0, Math.max(1, maxColumns));
+  return {
+    ...instance,
+    headers,
+    rows: instance.rows.slice(0, Math.max(1, maxRows)).map((row) => row.slice(0, headers.length))
+  };
 }
 
 export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, errors = {}, onMediaResolved, articleContent, articleHtml, onArticleContentChange, articleContentError }: {
@@ -116,9 +131,12 @@ export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, error
   return <section aria-labelledby="article-sections-heading" className="space-y-4">
     <div><h2 id="article-sections-heading" className="text-base font-bold text-slate-900">Article Sections</h2><p className="mt-1 text-xs text-slate-500">Content for the enabled sections defined by this Custom Template.</p></div>
 
-    {editableInstances.map(({ blockId, componentKey, label }) => {
+    {editableInstances.map(({ blockId, componentKey, label, settings }) => {
       const stored = blockId === 'article_content' ? undefined : value.custom_instances?.[blockId];
-      const instance = stored?.componentKey === componentKey ? stored : createDefaultCustomInstanceContent(componentKey);
+      let instance = stored?.componentKey === componentKey ? stored : createDefaultCustomInstanceContent(componentKey);
+      if (!stored && instance.componentKey === 'table') {
+        instance = clampTableToCapacity(instance, settings);
+      }
       const fieldPrefix = `blocks_json.custom_instances.${blockId}`;
       const key = `instance-${blockId}`;
 
@@ -187,6 +205,16 @@ export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, error
         {instance.componentKey === 'expert_quote' && <ExpertQuoteFields value={instance} onChange={(next) => setInstance(blockId, { ...next, componentKey: 'expert_quote' })} fieldPrefix={fieldPrefix} onMediaResolved={onMediaResolved} />}
         {instance.componentKey === 'medical_cta' && <MedicalCtaFields value={instance} onChange={(next) => setInstance(blockId, { ...next, componentKey: 'medical_cta' })} fieldPrefix={fieldPrefix} />}
         {instance.componentKey === 'faq' && <FaqFields value={instance} onChange={(next) => setInstance(blockId, { ...next, componentKey: 'faq' })} errors={errors} fieldPrefix={fieldPrefix} />}
+        {instance.componentKey === 'table' && (
+          <TableFields
+            value={instance}
+            onChange={(next) => setInstance(blockId, { ...next, componentKey: 'table' })}
+            errors={errors}
+            fieldPrefix={fieldPrefix}
+            maxRows={Number((settings as Partial<TableSettings>).maxRows ?? 4)}
+            maxColumns={Number((settings as Partial<TableSettings>).maxColumns ?? 4)}
+          />
+        )}
       </Section>;
     })}
   </section>;

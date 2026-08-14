@@ -198,6 +198,117 @@ describe('CustomTemplateRenderer Deterministic Execution', () => {
   });
 });
 
+describe('Data & Comparison Table rendering', () => {
+  function tableLayout(settings: Partial<{ variant: string; headerStyle: string; alignment: string; maxRows: number; maxColumns: number }> = {}) {
+    return {
+      schemaVersion: 1,
+      layoutId: 'table-layout',
+      metadata: { name: 'Table Layout', description: 'Renderer test.' },
+      page: { contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' },
+      sections: [{
+        id: 'sec-table',
+        layout: 'full_width',
+        responsiveStrategy: 'stack_on_mobile',
+        enabled: true,
+        background: 'white',
+        slots: [{
+          id: 'slot-table',
+          name: 'Main',
+          components: [{
+            id: 'comp-table',
+            componentKey: 'table',
+            blockId: 'table_1',
+            enabled: true,
+            settings: { variant: 'striped', headerStyle: 'brand_sky', alignment: 'left', maxRows: 4, maxColumns: 4, ...settings }
+          }]
+        }]
+      }]
+    };
+  }
+
+  function tableBlocksDoc(overrides: Partial<{ enabled: boolean; heading: string; content: string; headers: string[]; rows: string[][] }> = {}) {
+    return {
+      custom_instances: {
+        table_1: {
+          componentKey: 'table' as const,
+          enabled: true,
+          heading: 'LASIK Treatment Comparison',
+          content: 'Compare the available treatment options.',
+          headers: ['Procedure', 'Recovery Time', 'Success Rate'],
+          rows: [
+            ['LASIK', '24 hours', '99%'],
+            ['PRK', '3-5 days', '98%']
+          ],
+          ...overrides
+        }
+      }
+    };
+  }
+
+  it('renders the title, content, headers, and cell data', () => {
+    render(<CustomTemplateRenderer layoutConfig={tableLayout()} blocksDoc={tableBlocksDoc() as never} />);
+    expect(screen.getByRole('heading', { name: 'LASIK Treatment Comparison' })).toBeInTheDocument();
+    expect(screen.getByText('Compare the available treatment options.')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Procedure' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '24 hours' })).toBeInTheDocument();
+  });
+
+  it('wraps the table in a horizontally scrollable container for mobile', () => {
+    render(<CustomTemplateRenderer layoutConfig={tableLayout()} blocksDoc={tableBlocksDoc() as never} />);
+    const table = screen.getByRole('table');
+    expect(table.parentElement).toHaveClass('overflow-x-auto');
+  });
+
+  it('applies the striped variant as alternating row backgrounds', () => {
+    render(<CustomTemplateRenderer layoutConfig={tableLayout({ variant: 'striped' })} blocksDoc={tableBlocksDoc() as never} />);
+    const rows = screen.getAllByRole('row').slice(1); // exclude header row
+    expect(rows[0]).not.toHaveClass('bg-slate-50');
+    expect(rows[1]).toHaveClass('bg-slate-50');
+  });
+
+  it('applies the bordered variant with visible borders', () => {
+    render(<CustomTemplateRenderer layoutConfig={tableLayout({ variant: 'bordered' })} blocksDoc={tableBlocksDoc() as never} />);
+    expect(screen.getByRole('table')).toHaveClass('border');
+  });
+
+  it('applies the clean variant without a heavy outer grid', () => {
+    render(<CustomTemplateRenderer layoutConfig={tableLayout({ variant: 'clean' })} blocksDoc={tableBlocksDoc() as never} />);
+    expect(screen.getByRole('table').className).not.toContain('border-slate-300');
+  });
+
+  it('applies left and center alignment to headers and cells', () => {
+    const { unmount } = render(<CustomTemplateRenderer layoutConfig={tableLayout({ alignment: 'left' })} blocksDoc={tableBlocksDoc() as never} />);
+    expect(screen.getByRole('columnheader', { name: 'Procedure' })).toHaveClass('text-left');
+    unmount();
+
+    render(<CustomTemplateRenderer layoutConfig={tableLayout({ alignment: 'center' })} blocksDoc={tableBlocksDoc() as never} />);
+    expect(screen.getByRole('columnheader', { name: 'Procedure' })).toHaveClass('text-center');
+  });
+
+  it('applies the brand_sky, dark_slate, and light_gray header styles', () => {
+    const { unmount: unmountSky } = render(<CustomTemplateRenderer layoutConfig={tableLayout({ headerStyle: 'brand_sky' })} blocksDoc={tableBlocksDoc() as never} />);
+    expect(screen.getByRole('columnheader', { name: 'Procedure' })).toHaveClass('bg-sky-50');
+    unmountSky();
+
+    const { unmount: unmountDark } = render(<CustomTemplateRenderer layoutConfig={tableLayout({ headerStyle: 'dark_slate' })} blocksDoc={tableBlocksDoc() as never} />);
+    expect(screen.getByRole('columnheader', { name: 'Procedure' })).toHaveClass('bg-slate-900');
+    unmountDark();
+
+    render(<CustomTemplateRenderer layoutConfig={tableLayout({ headerStyle: 'light_gray' })} blocksDoc={tableBlocksDoc() as never} />);
+    expect(screen.getByRole('columnheader', { name: 'Procedure' })).toHaveClass('bg-slate-100');
+  });
+
+  it('does not render a disabled table', () => {
+    render(<CustomTemplateRenderer layoutConfig={tableLayout()} blocksDoc={tableBlocksDoc({ enabled: false }) as never} />);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('shows preview fallback content when no instance data exists yet', () => {
+    render(<CustomTemplateRenderer layoutConfig={tableLayout()} isPreview />);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+});
+
 describe('Frontend Component Registry Integrity', () => {
   it('contains trusted allowlisted components only', () => {
     expect(isRegisteredComponentKey('hero')).toBe(true);

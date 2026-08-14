@@ -319,3 +319,48 @@ describe('validateFrontendCustomTemplateLayout - parity with backend', () => {
     expect(validateFrontendCustomTemplateLayout(layout).errors.some((error) => error.path === 'page.contentWidth')).toBe(true);
   });
 });
+
+describe('Table settings validation', () => {
+  function layoutWithTable(settings: Record<string, unknown>): CustomTemplateLayoutConfigV1 {
+    return {
+      schemaVersion: 1,
+      layoutId: 'table-settings',
+      metadata: { name: 'Table Settings', description: 'Test.' },
+      page: { contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' },
+      sections: [{
+        id: 'sec-table',
+        layout: 'full_width',
+        responsiveStrategy: 'stack_on_mobile',
+        enabled: true,
+        slots: [{
+          id: 'slot-table',
+          name: 'Main',
+          components: [asComponent({ id: 'comp-table', componentKey: 'table', blockId: 'table_1', enabled: true, settings })]
+        }]
+      }]
+    };
+  }
+
+  it('accepts valid table settings within the global 1-50 row / 1-10 column limits', () => {
+    const result = validateFrontendCustomTemplateLayout(layoutWithTable({ variant: 'striped', headerStyle: 'brand_sky', alignment: 'left', maxRows: 4, maxColumns: 4 }));
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects maxRows above the global limit of 50', () => {
+    const result = validateFrontendCustomTemplateLayout(layoutWithTable({ variant: 'striped', headerStyle: 'brand_sky', alignment: 'left', maxRows: 51, maxColumns: 4 }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.path.includes('maxRows'))).toBe(true);
+  });
+
+  it('rejects maxColumns above the global limit of 10', () => {
+    const result = validateFrontendCustomTemplateLayout(layoutWithTable({ variant: 'striped', headerStyle: 'brand_sky', alignment: 'left', maxRows: 4, maxColumns: 11 }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.path.includes('maxColumns'))).toBe(true);
+  });
+
+  it('rejects an unknown variant, headerStyle, or alignment value', () => {
+    expect(validateFrontendCustomTemplateLayout(layoutWithTable({ variant: 'rainbow', headerStyle: 'brand_sky', alignment: 'left', maxRows: 4, maxColumns: 4 })).valid).toBe(false);
+    expect(validateFrontendCustomTemplateLayout(layoutWithTable({ variant: 'striped', headerStyle: 'neon', alignment: 'left', maxRows: 4, maxColumns: 4 })).valid).toBe(false);
+    expect(validateFrontendCustomTemplateLayout(layoutWithTable({ variant: 'striped', headerStyle: 'brand_sky', alignment: 'right', maxRows: 4, maxColumns: 4 })).valid).toBe(false);
+  });
+});
