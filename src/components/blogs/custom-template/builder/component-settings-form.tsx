@@ -277,6 +277,65 @@ export default function ComponentSettingsForm({
           />
         );
 
+      case 'table':
+        return (
+          <>
+            <Select
+              label="Table Style"
+              options={[
+                { label: 'Striped rows', value: 'striped' },
+                { label: 'Bordered grid', value: 'bordered' },
+                { label: 'Clean minimal', value: 'clean' }
+              ]}
+              value={s.variant}
+              onChange={(e) => handleUpdate({ settings: { ...s, variant: e.target.value } })}
+            />
+            <Select
+              label="Header Style"
+              options={[
+                { label: 'Brand Sky', value: 'brand_sky' },
+                { label: 'Dark Slate', value: 'dark_slate' },
+                { label: 'Light Gray', value: 'light_gray' }
+              ]}
+              value={s.headerStyle}
+              onChange={(e) => handleUpdate({ settings: { ...s, headerStyle: e.target.value } })}
+            />
+            <Select
+              label="Text Alignment"
+              options={[
+                { label: 'Left align', value: 'left' },
+                { label: 'Center align', value: 'center' }
+              ]}
+              value={s.alignment}
+              onChange={(e) => handleUpdate({ settings: { ...s, alignment: e.target.value } })}
+            />
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Maximum Rows (1-50)</label>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={Number(s.maxRows ?? 4)}
+                onChange={(e) => handleUpdate({ settings: { ...s, maxRows: Math.min(50, Math.max(1, Number(e.target.value) || 1)) } })}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 focus:outline-hidden transition-all"
+              />
+              <p className="text-[10px] text-slate-400">Blog authors can use up to this many rows — not a fixed count.</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Maximum Columns (1-10)</label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={Number(s.maxColumns ?? 4)}
+                onChange={(e) => handleUpdate({ settings: { ...s, maxColumns: Math.min(10, Math.max(1, Number(e.target.value) || 1)) } })}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 focus:outline-hidden transition-all"
+              />
+              <p className="text-[10px] text-slate-400">Blog authors can use up to this many columns — not a fixed count.</p>
+            </div>
+          </>
+        );
+
       case 'article_table_of_contents':
         return (
           <Select

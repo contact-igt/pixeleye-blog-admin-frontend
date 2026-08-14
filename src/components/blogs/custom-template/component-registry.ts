@@ -44,6 +44,7 @@ export const REGISTERED_COMPONENTS: Record<RegisteredComponentKey, ComponentDefi
   feedback: define({ key: 'feedback', displayName: 'Helpful Feedback', category: 'content', requiredBlockKey: 'feedback', allowedZones: ['main', 'full'] }),
   share: define({ key: 'share', displayName: 'Share Controls', category: 'content', requiredBlockKey: 'share', allowedZones: ['main', 'full', 'sidebar'] }),
   medical_disclaimer: define({ key: 'medical_disclaimer', displayName: 'Medical Disclaimer', category: 'content', requiredBlockKey: 'disclaimer', allowedZones: ['main', 'full'] }),
+  table: define({ key: 'table', displayName: 'Data & Comparison Table', category: 'content', requiredBlockKey: 'table', allowedZones: ['main', 'full'] }),
   article_table_of_contents: define({ key: 'article_table_of_contents', displayName: 'Table of Contents', category: 'system', requiredBlockKey: null, allowedZones: ['sidebar', 'main', 'full'] }),
   appointment_card: define({ key: 'appointment_card', displayName: 'Appointment Booking Card', category: 'system', requiredBlockKey: null, allowedZones: ['sidebar', 'main', 'full'] }),
   newsletter_card: define({ key: 'newsletter_card', displayName: 'Newsletter Signup Card', category: 'system', requiredBlockKey: null, allowedZones: ['sidebar', 'main', 'full'] }),

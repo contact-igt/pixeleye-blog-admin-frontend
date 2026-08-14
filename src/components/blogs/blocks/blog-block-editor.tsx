@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, Circle, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { Input, Textarea } from '@/components/ui/input';
-import type { BlogBlocksDocument } from '@/types/blog-blocks';
+import { Button } from '@/components/ui/button';
+import type { BlogBlocksDocument, CustomBlockInstanceContent } from '@/types/blog-blocks';
 import type { MediaAsset } from '@/types/media';
 import { BlockMediaPicker } from './block-media-picker';
 import { RepeaterEditor } from './repeater-editor';
@@ -154,6 +155,114 @@ export function FaqFields({ value, onChange, errors = {}, fieldPrefix }: FieldsP
   return <>
     <Input label="Heading" value={value.heading} maxLength={160} onChange={(event) => onChange({ ...value, heading: event.target.value })} />
     <RepeaterEditor items={value.items} max={10} createItem={() => ({ question: '', answer: '' })} addLabel="Add FAQ" onChange={(items) => onChange({ ...value, items })} renderItem={(item, index) => <div className="space-y-3"><Input label="Question" value={item.question} maxLength={240} onChange={(event) => { const items = [...value.items]; items[index] = { ...item, question: event.target.value }; onChange({ ...value, items }); }} error={fieldError(errors, `${fieldPrefix}.items.${index}.question`)} /><Textarea label="Answer" value={item.answer} maxLength={1000} rows={4} onChange={(event) => { const items = [...value.items]; items[index] = { ...item, answer: event.target.value }; onChange({ ...value, items }); }} error={fieldError(errors, `${fieldPrefix}.items.${index}.answer`)} /></div>} />
+  </>;
+}
+
+type TableInstance = Extract<CustomBlockInstanceContent, { componentKey: 'table' }>;
+
+export function TableFields({ value, onChange, errors = {}, fieldPrefix, maxRows, maxColumns }: {
+  value: TableInstance;
+  onChange: (value: TableInstance) => void;
+  errors?: Record<string, string>;
+  fieldPrefix: string;
+  maxRows: number;
+  maxColumns: number;
+}) {
+  const headers = value.headers;
+  const rows = value.rows;
+  const overCapacity = headers.length > maxColumns || rows.length > maxRows;
+
+  function addColumn() {
+    if (headers.length >= maxColumns) return;
+    onChange({ ...value, headers: [...headers, ''], rows: rows.map((row) => [...row, '']) });
+  }
+
+  function removeColumn(index: number) {
+    if (headers.length <= 1) return;
+    onChange({
+      ...value,
+      headers: headers.filter((_, colIndex) => colIndex !== index),
+      rows: rows.map((row) => row.filter((_, colIndex) => colIndex !== index))
+    });
+  }
+
+  function updateHeader(index: number, text: string) {
+    const nextHeaders = [...headers];
+    nextHeaders[index] = text;
+    onChange({ ...value, headers: nextHeaders });
+  }
+
+  function updateCell(rowIndex: number, cellIndex: number, text: string) {
+    const nextRows = rows.map((row, r) => (r === rowIndex ? row.map((cell, c) => (c === cellIndex ? text : cell)) : row));
+    onChange({ ...value, rows: nextRows });
+  }
+
+  return <>
+    <Input label="Table Title" value={value.heading} maxLength={180} onChange={(event) => onChange({ ...value, heading: event.target.value })} error={fieldError(errors, `${fieldPrefix}.heading`)} />
+    <Textarea label="Table Content" value={value.content} maxLength={1000} rows={3} onChange={(event) => onChange({ ...value, content: event.target.value })} error={fieldError(errors, `${fieldPrefix}.content`)} />
+
+    {overCapacity && (
+      <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+        This table has more rows/columns than the Custom Template currently allows ({maxRows} rows &times; {maxColumns} columns). Remove the extra rows or columns before saving changes.
+      </p>
+    )}
+
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Columns</span>
+        <span className="text-xs text-slate-400">{headers.length}/{maxColumns} columns</span>
+      </div>
+      <div className="space-y-2">
+        {headers.map((header, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <Input
+              aria-label={`Column ${index + 1} header`}
+              value={header}
+              maxLength={120}
+              onChange={(event) => updateHeader(index, event.target.value)}
+              error={fieldError(errors, `${fieldPrefix}.headers.${index}`)}
+            />
+            <button
+              type="button"
+              aria-label={`Delete column ${index + 1}`}
+              disabled={headers.length <= 1}
+              onClick={() => removeColumn(index)}
+              className="rounded p-2 text-rose-600 disabled:opacity-30"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <Button type="button" variant="outline" size="sm" disabled={headers.length >= maxColumns} onClick={addColumn}>
+        <Plus size={14} />Add Column
+      </Button>
+    </div>
+
+    <div className="space-y-2">
+      <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Rows</span>
+      <RepeaterEditor
+        items={rows}
+        max={maxRows}
+        createItem={() => new Array(headers.length).fill('')}
+        addLabel="Add Row"
+        onChange={(nextRows) => onChange({ ...value, rows: nextRows })}
+        renderItem={(row, rowIndex) => (
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.max(headers.length, 1)}, minmax(0, 1fr))` }}>
+            {row.map((cell, cellIndex) => (
+              <Input
+                key={cellIndex}
+                aria-label={`Row ${rowIndex + 1}, ${headers[cellIndex] || `column ${cellIndex + 1}`}`}
+                value={cell}
+                maxLength={500}
+                onChange={(event) => updateCell(rowIndex, cellIndex, event.target.value)}
+                error={fieldError(errors, `${fieldPrefix}.rows.${rowIndex}.${cellIndex}`)}
+              />
+            ))}
+          </div>
+        )}
+      />
+    </div>
   </>;
 }
 
