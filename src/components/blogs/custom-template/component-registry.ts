@@ -48,6 +48,8 @@ export const REGISTERED_COMPONENTS: Record<RegisteredComponentKey, ComponentDefi
   article_table_of_contents: define({ key: 'article_table_of_contents', displayName: 'Table of Contents', category: 'system', requiredBlockKey: null, allowedZones: ['sidebar', 'main', 'full'] }),
   appointment_card: define({ key: 'appointment_card', displayName: 'Appointment Booking Card', category: 'system', requiredBlockKey: null, allowedZones: ['sidebar', 'main', 'full'] }),
   newsletter_card: define({ key: 'newsletter_card', displayName: 'Newsletter Signup Card', category: 'system', requiredBlockKey: null, allowedZones: ['sidebar', 'main', 'full'] }),
+  blog_categories: define({ key: 'blog_categories', displayName: 'Blog Categories', category: 'system', requiredBlockKey: null, allowedZones: ['sidebar', 'main', 'full'] }),
+  recent_related_blogs: define({ key: 'recent_related_blogs', displayName: 'Recent & Related Blogs', category: 'system', requiredBlockKey: null, allowedZones: ['sidebar', 'main', 'full'] }),
   spacer: define({ key: 'spacer', displayName: 'Vertical Spacer', category: 'structural', requiredBlockKey: null, allowedZones: ['main', 'sidebar', 'full'] }),
   divider: define({ key: 'divider', displayName: 'Section Divider', category: 'structural', requiredBlockKey: null, allowedZones: ['main', 'sidebar', 'full'] })
 };

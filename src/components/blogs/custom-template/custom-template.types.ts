@@ -26,7 +26,7 @@ export type CustomTemplateResponsiveStrategy =
   | 'main_sidebar'
   | 'three_to_two_to_one';
 
-export type CustomTemplateContentWidth = 'narrow' | 'standard' | 'wide' | 'full';
+export type CustomTemplateContentWidth = 'narrow' | 'standard' | 'wide' | 'extra_wide' | 'full';
 export type CustomTemplatePageBackground = 'white' | 'soft_gray' | 'brand_tint';
 export type CustomTemplateSectionSpacing = 'compact' | 'normal' | 'spacious';
 export type CustomTemplateTypographyVariant = 'editorial' | 'modern' | 'clinical';
@@ -55,7 +55,9 @@ export type ContentComponentKey =
 export type SystemComponentKey =
   | 'article_table_of_contents'
   | 'appointment_card'
-  | 'newsletter_card';
+  | 'newsletter_card'
+  | 'blog_categories'
+  | 'recent_related_blogs';
 
 export type StructuralComponentKey = 'spacer' | 'divider';
 
@@ -101,7 +103,7 @@ export interface MedicalCtaSettings {
 }
 
 export interface FaqSettings {
-  layout: 'accordion' | 'image_accordion';
+  layout: 'accordion' | 'image_accordion' | 'qa_list';
   defaultOpen: 'first' | 'none';
 }
 
@@ -142,6 +144,20 @@ export interface NewsletterCardSettings {
   buttonLabel: string;
 }
 
+export interface BlogCategoriesSettings {
+  heading: string;
+  maxItems: number;
+  showCount: boolean;
+}
+
+export interface RecentRelatedBlogsSettings {
+  heading: string;
+  mode: 'recent' | 'related' | 'tabs';
+  maxItems: number;
+  showImage: boolean;
+  showDate: boolean;
+}
+
 export interface SpacerSettings {
   size: 'small' | 'medium' | 'large';
 }
@@ -166,6 +182,8 @@ export type CustomTemplateComponentInstance =
   | { id: string; componentKey: 'article_table_of_contents'; blockId?: undefined; settings: TocSettings; enabled: boolean }
   | { id: string; componentKey: 'appointment_card'; blockId?: undefined; settings: AppointmentCardSettings; enabled: boolean }
   | { id: string; componentKey: 'newsletter_card'; blockId?: undefined; settings: NewsletterCardSettings; enabled: boolean }
+  | { id: string; componentKey: 'blog_categories'; blockId?: undefined; settings: BlogCategoriesSettings; enabled: boolean }
+  | { id: string; componentKey: 'recent_related_blogs'; blockId?: undefined; settings: RecentRelatedBlogsSettings; enabled: boolean }
   | { id: string; componentKey: 'spacer'; blockId?: undefined; settings: SpacerSettings; enabled: boolean }
   | { id: string; componentKey: 'divider'; blockId?: undefined; settings: DividerSettings; enabled: boolean };
 

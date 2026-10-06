@@ -19,6 +19,7 @@ import {
   TableFields
 } from '../blocks/blog-block-editor';
 import { getComponentDefinition, isRegisteredComponentKey } from './component-registry';
+import { RelatedBlogsPicker } from './related-blogs-picker';
 import type { CustomTemplateComponentInstance, CustomTemplateLayoutConfigV1, TableSettings } from './custom-template.types';
 
 export interface EditableInstance {
@@ -26,12 +27,15 @@ export interface EditableInstance {
   componentKey: CustomBlockInstanceContent['componentKey'];
   label: string;
   settings: Record<string, unknown>;
+  /** Extra Hero placements in older templates: kept initialised but not shown or required. */
+  hidden?: boolean;
 }
 
 export function collectEditableInstances(config: CustomTemplateLayoutConfigV1): EditableInstance[] {
   const counts = new Map<string, number>();
   const seenBlockIds = new Set<string>();
   const instances: EditableInstance[] = [];
+  let heroSeen = false;
   for (const section of config.sections) {
     if (section.enabled === false) continue;
     for (const slot of section.slots) {
@@ -50,18 +54,35 @@ export function collectEditableInstances(config: CustomTemplateLayoutConfigV1): 
           }
         }
         seenBlockIds.add(blockId);
-        instances.push({ blockId, componentKey: component.componentKey as EditableInstance['componentKey'], label: definition.displayName, settings: component.settings as unknown as Record<string, unknown> });
-        counts.set(component.componentKey, (counts.get(component.componentKey) ?? 0) + 1);
+        const duplicateHero = component.componentKey === 'hero' && heroSeen;
+        if (component.componentKey === 'hero') heroSeen = true;
+        instances.push({ blockId, componentKey: component.componentKey as EditableInstance['componentKey'], label: definition.displayName, settings: component.settings as unknown as Record<string, unknown>, ...(duplicateHero ? { hidden: true } : {}) });
+        if (!duplicateHero) counts.set(component.componentKey, (counts.get(component.componentKey) ?? 0) + 1);
       }
     }
   }
   const running = new Map<string, number>();
   return instances.map((instance) => {
-    if ((counts.get(instance.componentKey) ?? 1) <= 1) return instance;
+    if (instance.hidden || (counts.get(instance.componentKey) ?? 1) <= 1) return instance;
     const next = (running.get(instance.componentKey) ?? 0) + 1;
     running.set(instance.componentKey, next);
     return { ...instance, label: `${instance.label} #${next}` };
   });
+}
+
+/** Settings of the first active Recent & Related Blogs component that shows a hand-picked "Related" list. */
+export function findRelatedBlogsSettings(config: CustomTemplateLayoutConfigV1): { maxItems: number } | null {
+  for (const section of config.sections) {
+    if (section.enabled === false) continue;
+    for (const slot of section.slots) {
+      for (const component of slot.components) {
+        if (component.componentKey === 'recent_related_blogs' && component.enabled !== false && component.settings.mode !== 'recent') {
+          return { maxItems: Math.min(10, Math.max(1, Number(component.settings.maxItems) || 4)) };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function isComplete(instance: CustomBlockInstanceContent): boolean {
@@ -93,7 +114,7 @@ function clampTableToCapacity(instance: Extract<CustomBlockInstanceContent, { co
   };
 }
 
-export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, errors = {}, onMediaResolved, articleContent, articleHtml, onArticleContentChange, articleContentError }: {
+export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, errors = {}, onMediaResolved, articleContent, articleHtml, onArticleContentChange, articleContentError, currentBlogId }: {
   layoutConfig: CustomTemplateLayoutConfigV1;
   value: BlogBlocksDocument;
   onChange: (value: BlogBlocksDocument) => void;
@@ -103,6 +124,7 @@ export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, error
   articleHtml?: string;
   onArticleContentChange?: (value: TipTapDocument, html: string) => void;
   articleContentError?: string;
+  currentBlogId?: string;
 }) {
   const editableInstances = collectEditableInstances(layoutConfig);
   const setInstance = (blockId: string, next: CustomBlockInstanceContent) =>
@@ -121,7 +143,11 @@ export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, error
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editableInstances.map((instance) => `${instance.blockId}:${instance.componentKey}`).join(',')]);
 
-  if (editableInstances.length === 0) {
+  const visibleInstances = editableInstances.filter((instance) => !instance.hidden);
+
+  const relatedSettings = findRelatedBlogsSettings(layoutConfig);
+
+  if (visibleInstances.length === 0 && !relatedSettings) {
     return <section aria-labelledby="article-sections-heading" className="space-y-4">
       <div><h2 id="article-sections-heading" className="text-base font-bold text-slate-900">Article Sections</h2></div>
       <p className="text-xs text-slate-500">This Custom Template does not define any enabled, Blog-editable content sections.</p>
@@ -131,7 +157,7 @@ export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, error
   return <section aria-labelledby="article-sections-heading" className="space-y-4">
     <div><h2 id="article-sections-heading" className="text-base font-bold text-slate-900">Article Sections</h2><p className="mt-1 text-xs text-slate-500">Content for the enabled sections defined by this Custom Template.</p></div>
 
-    {editableInstances.map(({ blockId, componentKey, label, settings }) => {
+    {visibleInstances.map(({ blockId, componentKey, label, settings }) => {
       const stored = blockId === 'article_content' ? undefined : value.custom_instances?.[blockId];
       let instance = stored?.componentKey === componentKey ? stored : createDefaultCustomInstanceContent(componentKey);
       if (!stored && instance.componentKey === 'table') {
@@ -165,7 +191,7 @@ export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, error
 
       if (instance.componentKey === 'hero') {
         return <Section key={key} title={label} required complete={isComplete(instance)}>
-          <HeroFields value={instance} onChange={(next) => setInstance(blockId, { ...next, componentKey: 'hero' })} errors={errors} fieldPrefix={fieldPrefix} />
+          <HeroFields value={instance} onChange={(next) => setInstance(blockId, { ...next, componentKey: 'hero' })} errors={errors} fieldPrefix={fieldPrefix} showHeaderStyle />
         </Section>;
       }
       if (instance.componentKey === 'medical_disclaimer') {
@@ -217,5 +243,16 @@ export function CustomTemplateBlockEditor({ layoutConfig, value, onChange, error
         )}
       </Section>;
     })}
+
+    {relatedSettings && (
+      <Section title="Related Blogs" complete={(value.related_blog_ids ?? []).length > 0}>
+        <RelatedBlogsPicker
+          value={value.related_blog_ids ?? []}
+          max={relatedSettings.maxItems}
+          currentBlogId={currentBlogId}
+          onChange={(ids) => onChange({ ...value, related_blog_ids: ids })}
+        />
+      </Section>
+    )}
   </section>;
 }

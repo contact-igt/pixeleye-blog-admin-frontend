@@ -5,6 +5,7 @@ import { REGISTERED_COMPONENTS, ComponentCategory, getComponentDefinition } from
 import type { RegisteredComponentKey, CustomTemplateSectionLayout } from '../custom-template.types';
 import type { SelectedElement } from './builder-state';
 import { Search } from 'lucide-react';
+import { countActiveHeroes } from '../hero-limit';
 
 interface ComponentPaletteProps {
   dispatch: React.Dispatch<any>;
@@ -20,6 +21,7 @@ export default function ComponentPalette({
   const [searchQuery, setSearchQuery] = useState('');
 
   const isSlotSelected = selectedElement?.type === 'slot';
+  const activeHeroCount = countActiveHeroes(sections);
   
   // Resolve current slot zone if slot is selected
   let currentZone: 'full' | 'main' | 'sidebar' | null = null;
@@ -89,6 +91,12 @@ export default function ComponentPalette({
           </p>
         )}
 
+        {activeHeroCount > 1 && (
+          <p className="text-[10px] text-rose-700 font-medium mt-1.5 bg-rose-50 border border-rose-200 p-2 rounded-lg leading-relaxed">
+            This template has {activeHeroCount} Hero Banners. Only the first is used on the website — remove or disable the extras.
+          </p>
+        )}
+
         <div className="relative mt-3">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -112,7 +120,8 @@ export default function ComponentPalette({
               <div className="grid gap-2">
                 {catComponents.map((comp) => {
                   const allowed = currentZone ? comp.allowedZones.includes(currentZone) : false;
-                  const canAdd = isSlotSelected && allowed && !slotCapacityReached && !totalCapacityReached;
+                  const heroLimitReached = comp.key === 'hero' && activeHeroCount >= 1;
+                  const canAdd = isSlotSelected && allowed && !slotCapacityReached && !totalCapacityReached && !heroLimitReached;
 
                   return (
                     <button
@@ -125,7 +134,9 @@ export default function ComponentPalette({
                           : 'border-slate-200 bg-slate-50/50 opacity-50 cursor-not-allowed'
                       }`}
                       title={
-                        !isSlotSelected
+                        heroLimitReached
+                          ? 'Only one Hero Banner is allowed per template'
+                          : !isSlotSelected
                           ? 'Select a slot first'
                           : !allowed
                           ? `Not allowed in a ${currentZone} zone (Requires: ${comp.allowedZones.join(', ')})`

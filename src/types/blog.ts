@@ -43,6 +43,7 @@ export interface BlogVersion {
 }
 export interface BlogListItem { id: string; title: string; slug: string; excerpt: string | null; status: BlogStatus; previous_status?: BlogStatus | null; featured_media: Partial<MediaAsset> | null; author: BlogAdminSummary | null; published_at: string | null; unpublished_at?: string | null; trashed_at?: string | null; trashed_by?: BlogAdminSummary | null; updated_at: string; created_at: string; has_unpublished_changes: boolean; has_unpublished_template_changes?: boolean }
 export interface BlogDetail extends BlogListItem { draft_version: BlogVersion | null; published_version: BlogVersion | null; creator?: BlogAdminSummary | null; updater?: BlogAdminSummary | null }
+export interface BlogCategory { name: string; count: number }
 export interface BlogPagination { page: number; limit: number; total_items: number; total_pages: number; has_next_page: boolean; has_previous_page: boolean }
 export interface BlogListResponse { items: BlogListItem[]; pagination: BlogPagination }
 export interface BlogListParams { page?: number; limit?: number; search?: string; status?: BlogStatus | ''; author_id?: string; sort_by?: 'created_at' | 'updated_at' | 'published_at' | 'title' | 'status' | 'trashed_at'; sort_order?: 'asc' | 'desc'; has_featured_image?: 'true' | 'false' | '' }

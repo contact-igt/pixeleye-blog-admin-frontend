@@ -136,6 +136,7 @@ describe('CustomTemplateRenderer Deterministic Execution', () => {
       [{ contentWidth: 'narrow', background: 'soft_gray', spacing: 'compact', typography: 'modern' }, ['max-w-2xl', 'bg-slate-50', 'space-y-6', 'font-sans']],
       [{ contentWidth: 'standard', background: 'brand_tint', spacing: 'normal', typography: 'clinical' }, ['max-w-4xl', 'bg-sky-50/40', 'space-y-10', 'font-mono']],
       [{ contentWidth: 'wide', background: 'white', spacing: 'spacious', typography: 'editorial' }, ['max-w-6xl', 'bg-white', 'space-y-16', 'font-serif']],
+      [{ contentWidth: 'extra_wide', background: 'white', spacing: 'normal', typography: 'editorial' }, ['max-w-7xl', 'bg-white', 'space-y-10', 'font-serif']],
       [{ contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' }, ['max-w-none', 'bg-white', 'space-y-10', 'font-serif']]
     ] as const;
 
@@ -306,6 +307,39 @@ describe('Data & Comparison Table rendering', () => {
   it('shows preview fallback content when no instance data exists yet', () => {
     render(<CustomTemplateRenderer layoutConfig={tableLayout()} isPreview />);
     expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+});
+
+describe('Blog Categories / Recent & Related Blogs preview', () => {
+  const layout = {
+    schemaVersion: 1,
+    layoutId: 'two-col-widgets',
+    metadata: { name: 'Two Col', description: 'Renderer test.' },
+    page: { contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' },
+    sections: [{
+      id: 'sec', layout: 'content_sidebar', responsiveStrategy: 'sidebar_below_on_tablet', enabled: true,
+      slots: [
+        { id: 'main', name: 'Main', components: [] },
+        { id: 'side', name: 'Sidebar', components: [
+          { id: 'cats', componentKey: 'blog_categories', enabled: true, settings: { heading: 'Categories', maxItems: 3, showCount: true } },
+          { id: 'rr', componentKey: 'recent_related_blogs', enabled: true, settings: { heading: '', mode: 'tabs', maxItems: 2, showImage: true, showDate: true } }
+        ] }
+      ]
+    }]
+  };
+
+  it('renders the category list and Related/Recent tabs in the sidebar slot', () => {
+    render(<CustomTemplateRenderer layoutConfig={layout} isPreview />);
+    expect(screen.getByRole('heading', { name: 'Categories' })).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem').length).toBeGreaterThanOrEqual(5); // 3 categories + 2 blogs
+    expect(screen.getByText('Related')).toBeInTheDocument();
+    expect(screen.getByText('Recent')).toBeInTheDocument();
+  });
+
+  it('respects the configured maximum categories', () => {
+    render(<CustomTemplateRenderer layoutConfig={layout} isPreview />);
+    expect(screen.getByText('Cataract Care')).toBeInTheDocument();
+    expect(screen.queryByText('Paediatric Eye Care')).not.toBeInTheDocument();
   });
 });
 
