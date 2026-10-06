@@ -13,6 +13,7 @@ export const PAGE_SETTING_OPTIONS = Object.freeze({
     { label: 'Narrow (max-w-2xl)', value: 'narrow' },
     { label: 'Standard (max-w-4xl)', value: 'standard' },
     { label: 'Wide (max-w-6xl)', value: 'wide' },
+    { label: 'Extra Wide (max-w-7xl)', value: 'extra_wide' },
     { label: 'Full Width (100%)', value: 'full' }
   ],
   background: [
@@ -85,7 +86,7 @@ const DEFAULT_COMPONENT_SETTINGS: Record<RegisteredComponentKey, Record<string, 
   numbered_list: { style: 'circle' },
   expert_quote: { orientation: 'horizontal', background: 'soft' },
   medical_cta: { style: 'navy', buttonLayout: 'inline' },
-  faq: { layout: 'accordion', defaultOpen: 'none' },
+  faq: { layout: 'qa_list', defaultOpen: 'none' },
   feedback: { showPrompt: true },
   share: { alignment: 'center' },
   medical_disclaimer: { variant: 'standard' },
@@ -93,6 +94,8 @@ const DEFAULT_COMPONENT_SETTINGS: Record<RegisteredComponentKey, Record<string, 
   article_table_of_contents: { headingLevels: [2, 3, 4], sticky: true },
   appointment_card: { heading: 'Book an Appointment', buttonLabel: 'Schedule Now', targetUrl: 'https://example.com/appointments' },
   newsletter_card: { heading: 'Subscribe to Newsletter', description: 'Get health tips.', buttonLabel: 'Subscribe' },
+  blog_categories: { heading: 'Categories', maxItems: 8, showCount: false },
+  recent_related_blogs: { heading: '', mode: 'tabs', maxItems: 4, showImage: true, showDate: true },
   spacer: { size: 'medium' },
   divider: { style: 'solid' }
 };
@@ -159,6 +162,9 @@ export function normalizeCustomTemplateSettings(rawConfig: unknown): unknown {
             settings.style = settings.variant === 'dots' ? 'dashed' : settings.variant;
             delete settings.variant;
           }
+          if (component.componentKey === 'faq' && settings.layout === 'accordion') {
+            settings.layout = 'qa_list';
+          }
           let blockId = component.blockId;
           if (component.componentKey === 'rich_article_content') {
             if (!hasMainArticleContent) {
@@ -183,7 +189,7 @@ export function normalizeCustomTemplateSettings(rawConfig: unknown): unknown {
 }
 
 export function pageWidthClass(value: CustomTemplatePageSettings['contentWidth']): string {
-  return value === 'narrow' ? 'max-w-2xl' : value === 'standard' ? 'max-w-4xl' : value === 'wide' ? 'max-w-6xl' : 'max-w-none';
+  return value === 'narrow' ? 'max-w-2xl' : value === 'standard' ? 'max-w-4xl' : value === 'wide' ? 'max-w-6xl' : value === 'extra_wide' ? 'max-w-7xl' : 'max-w-none';
 }
 
 export function defaultSectionContentWidth(layout?: CustomTemplateSectionLayout): CustomTemplateContentWidth {
@@ -265,7 +271,7 @@ export function resolveSectionSettings(
 }
 
 export function sectionWidthClass(width: string): string {
-  return width === 'narrow' ? 'max-w-2xl' : width === 'standard' ? 'max-w-4xl' : width === 'wide' ? 'max-w-6xl' : 'max-w-none';
+  return width === 'narrow' ? 'max-w-2xl' : width === 'standard' ? 'max-w-4xl' : width === 'wide' ? 'max-w-6xl' : width === 'extra_wide' ? 'max-w-7xl' : 'max-w-none';
 }
 
 export function sectionBackgroundClass(bg: string): string {

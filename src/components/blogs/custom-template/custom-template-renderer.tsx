@@ -9,6 +9,7 @@ import type {
   CustomTemplateSectionLayout
 } from './custom-template.types';
 import { validateFrontendCustomTemplateLayout } from './custom-template-validation';
+import { findFirstActiveHero, planArticleHeader } from './article-header-layout';
 import {
   pageSpacingClasses,
   pageTypographyClass,
@@ -70,6 +71,40 @@ export function CustomTemplateRenderer({
 
   const spacing = pageSpacingClasses(config.page.spacing);
 
+  // "Article header" style: the Hero moves into the first column of the first multi-column section.
+  const heroComponent = findFirstActiveHero(config.sections);
+  // A page has a single Hero: extra Hero placements saved in older templates are ignored.
+  const ignoredHeroIds = new Set(
+    config.sections
+      .filter((sec) => sec.enabled)
+      .flatMap((sec) => sec.slots.flatMap((slot) => slot.components))
+      .filter((comp) => comp.componentKey === 'hero' && comp.enabled && comp.id !== heroComponent?.id)
+      .map((comp) => comp.id)
+  );
+  const sectionIsOnlyIgnoredHeroes = (sec: (typeof config.sections)[number]) => {
+    const active = sec.slots.flatMap((slot) => slot.components.filter((comp) => comp.enabled));
+    return active.length > 0 && active.every((comp) => ignoredHeroIds.has(comp.id));
+  };
+  const heroInstance = heroComponent?.blockId ? blocksDoc?.custom_instances?.[heroComponent.blockId] : undefined;
+  const articlePlan = heroInstance?.componentKey === 'hero' && heroInstance.header_style === 'article'
+    ? planArticleHeader(config.sections, heroComponent)
+    : null;
+  const renderInstance = (component: CustomTemplateComponentInstance, sectionLayout: CustomTemplateSectionLayout) => (
+    <RenderComponentInstance
+      key={`comp-${component.id}`}
+      component={component}
+      blocksDoc={blocksDoc}
+      contentHtml={contentHtml}
+      title={title}
+      excerpt={excerpt}
+      image={image}
+      imageAlt={imageAlt}
+      isPreview={isPreview}
+      previewDevice={previewDevice}
+      sectionLayout={sectionLayout}
+    />
+  );
+
   return (
     <article
       data-template="custom_template"
@@ -84,7 +119,7 @@ export function CustomTemplateRenderer({
     >
       <div className={`mx-auto w-full ${pageWidthClass(config.page.contentWidth)} ${spacing.gap}`}>
         {config.sections
-          .filter((sec) => sec.enabled)
+          .filter((sec) => sec.enabled && !articlePlan?.emptiedSectionIds.has(sec.id) && !sectionIsOnlyIgnoredHeroes(sec))
           .map((section) => {
             const resolved = resolveSectionSettings(config.page, section.settings, section.layout);
             
@@ -102,23 +137,12 @@ export function CustomTemplateRenderer({
                   <div className={sectionGridClass(section.layout, section.responsiveStrategy, previewDevice)}>
                     {section.slots.map((slot) => (
                       <div key={`slot-${slot.id}`} data-slot-id={slot.id} className="space-y-6 min-w-0 w-full overflow-hidden">
+                        {articlePlan && heroComponent && section.id === articlePlan.hostSectionId && slot.id === articlePlan.hostSlotId
+                          ? renderInstance(heroComponent, section.layout)
+                          : null}
                         {slot.components
-                          .filter((comp) => comp.enabled)
-                          .map((component) => (
-                            <RenderComponentInstance
-                              key={`comp-${component.id}`}
-                              component={component}
-                              blocksDoc={blocksDoc}
-                              contentHtml={contentHtml}
-                              title={title}
-                              excerpt={excerpt}
-                              image={image}
-                              imageAlt={imageAlt}
-                              isPreview={isPreview}
-                              previewDevice={previewDevice}
-                              sectionLayout={section.layout}
-                            />
-                          ))}
+                          .filter((comp) => comp.enabled && !ignoredHeroIds.has(comp.id) && !(articlePlan && comp.id === articlePlan.heroId))
+                          .map((component) => renderInstance(component, section.layout))}
                       </div>
                     ))}
                   </div>
@@ -190,6 +214,30 @@ function RenderComponentInstance({
           : isPreview
           ? { name: 'Dr. Jane Smith', credentials: 'MD, Ophthalmologist' }
           : null;
+        if (heroData?.header_style === 'article') {
+          const published = new Date();
+          const month = published.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+          return (
+            <header data-header-style="article" className="w-full min-w-0 space-y-4 overflow-hidden">
+              {image ? (
+                <img src={image} alt={imageAlt || title || 'Featured Article Image'} className="aspect-[2/1] w-full rounded-3xl object-cover" />
+              ) : isPreview ? (
+                <div className="flex aspect-[2/1] w-full items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-slate-100/70 text-xs font-semibold text-slate-500">No Image Selected</div>
+              ) : null}
+              <div className="flex items-start gap-3">
+                <div className="w-14 shrink-0 overflow-hidden rounded-md text-center">
+                  <div className="bg-slate-100 py-1.5 text-xl font-extrabold text-slate-800">{String(published.getDate()).padStart(2, '0')}</div>
+                  <div className="bg-sky-700 py-1 text-[11px] font-bold text-white">{month}</div>
+                </div>
+                <h1 className="min-w-0 break-words text-2xl font-bold leading-tight text-sky-700 sm:text-3xl">{title || 'Eye Care & Vision Protection Guide'}</h1>
+              </div>
+              <p className="text-xs text-slate-500">
+                By <span className="font-semibold text-sky-700">Admin</span>
+                {category ? <> &nbsp;|&nbsp; <span className="font-semibold text-sky-700">{category}</span></> : null}
+              </p>
+            </header>
+          );
+        }
         return (
           <header data-hero-height={settings.height} data-hero-overlay={settings.overlay} className={`space-y-4 rounded-2xl p-6 ${settings.height === 'tall' ? 'min-h-96' : settings.height === 'compact' ? 'min-h-48' : 'min-h-72'} ${settings.overlay === 'strong' ? 'bg-slate-900 text-white' : settings.overlay === 'light' ? 'bg-slate-50' : 'bg-slate-100'} ${settings.alignment === 'center' ? 'text-center' : 'text-left'}`}>
             {category && (
@@ -334,8 +382,26 @@ function RenderComponentInstance({
 
       case 'faq': {
         const faq = faqInstance;
+        const qaList = component.settings.layout === 'qa_list';
         const active = faq && faq.enabled && faq.items.length > 0 ? faq : isPreview ? { enabled: true, heading: faq?.heading || 'Frequently Asked Questions', items: [{ question: 'How often should I get my eyes checked?', answer: 'Adults should have a comprehensive eye exam every 1 to 2 years, or as recommended by an eye care professional.' }, { question: 'What is the 20-20-20 rule?', answer: 'Every 20 minutes, look at an object 20 feet away for at least 20 seconds to reduce digital eye strain.' }] } : null;
         if (!active) return null;
+        if (qaList) {
+          return (
+            <section data-faq-layout="qa_list" className="w-full min-w-0 space-y-5 overflow-hidden">
+              <h2 className="text-2xl font-normal text-slate-700 break-words sm:text-3xl">{active.heading || 'Frequently Asked Questions'}</h2>
+              <div className="space-y-5">
+                {active.items.map((item, idx) => (
+                  <div key={`faq-${idx}`} className="space-y-2">
+                    <h3 className="text-lg font-normal uppercase leading-snug text-slate-700 break-words sm:text-xl">
+                      {/^q\.?\s*\d+/i.test(item.question.trim()) ? item.question : `Q.${idx + 1}. ${item.question}`}
+                    </h3>
+                    <p className="text-sm leading-7 text-slate-500 break-words">{item.answer}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        }
         return (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-slate-900">{active.heading || 'Frequently Asked Questions'}</h2>
@@ -520,6 +586,62 @@ function RenderComponentInstance({
               {buttonLabel}
             </button>
           </div>
+        );
+      }
+
+      case 'blog_categories': {
+        const settings = component.settings;
+        const sample = ['Cataract Care', 'Dry Eye', 'Glaucoma', 'Lasik', 'Paediatric Eye Care', 'Retina Care', 'Keratoconus', 'Squint'];
+        const items = sample.slice(0, Math.max(1, settings.maxItems || 8));
+        return (
+          <nav aria-label={settings.heading || 'Categories'} className="w-full min-w-0 overflow-hidden">
+            {settings.heading && <h3 className="border-b-[3px] border-sky-700 pb-3 text-lg font-bold text-slate-800 break-words">{settings.heading}</h3>}
+            <ul className="mt-1">
+              {items.map((name, idx) => (
+                <li key={`cat-${idx}`} className="flex items-center justify-between gap-2 border-b border-slate-200 py-2.5 text-sm text-slate-600 break-words">
+                  <span>{name}</span>
+                  {settings.showCount && <span className="text-xs text-slate-400">({idx + 2})</span>}
+                </li>
+              ))}
+            </ul>
+            {isPreview && <p className="mt-2 text-[10px] text-slate-400">Preview sample — real categories load from published blogs.</p>}
+          </nav>
+        );
+      }
+
+      case 'recent_related_blogs': {
+        const settings = component.settings;
+        const sample = [
+          { title: 'Early Signs of Cataracts You Should Never Ignore', date: '12 Sep 2026' },
+          { title: 'Understanding Glaucoma: The Silent Thief of Vision', date: '04 Sep 2026' },
+          { title: 'Dry Eye Relief: Simple Habits That Help', date: '28 Aug 2026' },
+          { title: 'Is LASIK Right For You?', date: '19 Aug 2026' }
+        ].slice(0, Math.max(1, settings.maxItems || 4));
+        const heading = settings.heading || (settings.mode === 'related' ? 'Related Blogs' : settings.mode === 'recent' ? 'Recent Blogs' : '');
+        return (
+          <aside aria-label="Recent and related blogs" className="w-full min-w-0 overflow-hidden">
+            {settings.mode === 'tabs' ? (
+              <div className="flex gap-2 border-b border-slate-200 pb-2 text-xs font-bold uppercase tracking-wider">
+                <span className="rounded-md bg-sky-700 px-3 py-1.5 text-white">Related</span>
+                <span className="px-3 py-1.5 text-slate-500">Recent</span>
+              </div>
+            ) : (
+              heading && <h3 className="border-b-[3px] border-sky-700 pb-3 text-lg font-bold text-slate-800 break-words">{heading}</h3>
+            )}
+            {settings.mode === 'tabs' && heading && <p className="mt-2 text-xs font-bold text-slate-700 break-words">{heading}</p>}
+            <ul className="mt-3 space-y-3">
+              {sample.map((post, idx) => (
+                <li key={`rr-${idx}`} className="flex items-start gap-3 border-b border-slate-100 pb-3">
+                  {settings.showImage && <span className="h-14 w-[72px] shrink-0 rounded-lg bg-slate-200" aria-hidden="true" />}
+                  <span className="min-w-0">
+                    <strong className="block text-sm font-bold leading-snug text-slate-800 break-words">{post.title}</strong>
+                    {settings.showDate && <time className="mt-1 block text-xs text-slate-500">{post.date}</time>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {isPreview && <p className="mt-1 text-[10px] text-slate-400">Preview sample — real posts load from published blogs.</p>}
+          </aside>
         );
       }
 

@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { CheckCircle2, Circle, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { Input, Textarea } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import type { BlogBlocksDocument, CustomBlockInstanceContent } from '@/types/blog-blocks';
 import type { MediaAsset } from '@/types/media';
 import { BlockMediaPicker } from './block-media-picker';
+import { CategoryCombobox } from './category-combobox';
 import { RepeaterEditor } from './repeater-editor';
 
 type Blocks = BlogBlocksDocument['blocks'];
@@ -101,9 +103,18 @@ interface FieldsProps<T> {
   onMediaResolved?: (id: string, media: MediaAsset | null) => void;
 }
 
-export function HeroFields({ value, onChange, errors = {}, fieldPrefix }: FieldsProps<Blocks['hero']>) {
+export function HeroFields({ value, onChange, errors = {}, fieldPrefix, showHeaderStyle = false }: FieldsProps<Blocks['hero'] & { header_style?: 'standard' | 'article' }> & { showHeaderStyle?: boolean }) {
   return <>
-    <Input label="Category" value={value.category} maxLength={100} onChange={(event) => onChange({ ...value, category: event.target.value })} error={fieldError(errors, `${fieldPrefix}.category`)} />
+    {showHeaderStyle && <Select
+      label="Header style"
+      options={[
+        { label: 'Standard banner (default)', value: 'standard' },
+        { label: 'Article header (image, date and title)', value: 'article' }
+      ]}
+      value={value.header_style ?? 'standard'}
+      onChange={(event) => onChange({ ...value, header_style: event.target.value === 'article' ? 'article' : 'standard' })}
+    />}
+    <CategoryCombobox value={value.category} onChange={(category) => onChange({ ...value, category })} error={fieldError(errors, `${fieldPrefix}.category`)} />
     <RepeaterEditor items={value.breadcrumb} max={5} createItem={() => ''} addLabel="Add breadcrumb" onChange={(breadcrumb) => onChange({ ...value, breadcrumb })} renderItem={(item, index) => <Input aria-label={`Breadcrumb ${index + 1}`} value={item} maxLength={80} onChange={(event) => { const breadcrumb = [...value.breadcrumb]; breadcrumb[index] = event.target.value; onChange({ ...value, breadcrumb }); }} error={fieldError(errors, `${fieldPrefix}.breadcrumb.${index}`)} />} />
     <div className="grid gap-3 sm:grid-cols-2"><Input label="Reviewer name" value={value.reviewer.name} maxLength={120} onChange={(event) => onChange({ ...value, reviewer: { ...value.reviewer, name: event.target.value } })} /><Input label="Reviewer credentials" value={value.reviewer.credentials} maxLength={160} onChange={(event) => onChange({ ...value, reviewer: { ...value.reviewer, credentials: event.target.value } })} /></div>
     <Input label="Reading time (minutes)" type="text" inputMode="numeric" pattern="[0-9]*" value={value.reading_time_minutes ?? ''} onChange={(event) => onChange({ ...value, reading_time_minutes: parseReadingTimeMinutes(event.target.value) })} />

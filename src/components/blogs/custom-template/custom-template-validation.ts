@@ -153,7 +153,7 @@ const SETTINGS_VALIDATORS: Record<string, SettingsValidator> = {
   },
   faq: (s, path, errors) => {
     checkNoUnknownKeys(s, ['layout', 'defaultOpen'], path, 'FAQ settings', errors);
-    checkEnum(s.layout, ['accordion', 'image_accordion'] as const, `${path}.layout`, 'layout', errors);
+    checkEnum(s.layout, ['accordion', 'image_accordion', 'qa_list'] as const, `${path}.layout`, 'layout', errors);
     checkEnum(s.defaultOpen, ['first', 'none'] as const, `${path}.defaultOpen`, 'defaultOpen', errors);
   },
   feedback: (s, path, errors) => {
@@ -195,6 +195,20 @@ const SETTINGS_VALIDATORS: Record<string, SettingsValidator> = {
     checkText(s.description, 240, `${path}.description`, 'description', errors);
     checkText(s.buttonLabel, 60, `${path}.buttonLabel`, 'buttonLabel', errors);
   },
+  blog_categories: (s, path, errors) => {
+    checkNoUnknownKeys(s, ['heading', 'maxItems', 'showCount'], path, 'Blog Categories settings', errors);
+    checkText(s.heading, MAX_NAME_LENGTH, `${path}.heading`, 'heading', errors);
+    checkIntRange(s.maxItems, 1, 20, `${path}.maxItems`, 'maxItems', errors);
+    checkBoolean(s.showCount, `${path}.showCount`, 'showCount', errors);
+  },
+  recent_related_blogs: (s, path, errors) => {
+    checkNoUnknownKeys(s, ['heading', 'mode', 'maxItems', 'showImage', 'showDate'], path, 'Recent & Related Blogs settings', errors);
+    checkText(s.heading, MAX_NAME_LENGTH, `${path}.heading`, 'heading', errors);
+    checkEnum(s.mode, ['recent', 'related', 'tabs'] as const, `${path}.mode`, 'mode', errors);
+    checkIntRange(s.maxItems, 1, 10, `${path}.maxItems`, 'maxItems', errors);
+    checkBoolean(s.showImage, `${path}.showImage`, 'showImage', errors);
+    checkBoolean(s.showDate, `${path}.showDate`, 'showDate', errors);
+  },
   spacer: (s, path, errors) => {
     checkNoUnknownKeys(s, ['size'], path, 'Spacer settings', errors);
     checkEnum(s.size, ['small', 'medium', 'large'] as const, `${path}.size`, 'size', errors);
@@ -206,7 +220,7 @@ const SETTINGS_VALIDATORS: Record<string, SettingsValidator> = {
 };
 
 // Component keys whose instance schema must NOT carry a blockId field at all (system/structural).
-const NO_BLOCK_ID_KEYS = new Set(['article_table_of_contents', 'appointment_card', 'newsletter_card', 'spacer', 'divider']);
+const NO_BLOCK_ID_KEYS = new Set(['article_table_of_contents', 'appointment_card', 'newsletter_card', 'blog_categories', 'recent_related_blogs', 'spacer', 'divider']);
 
 export function validateFrontendCustomTemplateLayout(
   rawConfig: unknown,

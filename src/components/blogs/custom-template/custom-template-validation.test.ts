@@ -364,3 +364,33 @@ describe('Table settings validation', () => {
     expect(validateFrontendCustomTemplateLayout(layoutWithTable({ variant: 'striped', headerStyle: 'brand_sky', alignment: 'right', maxRows: 4, maxColumns: 4 })).valid).toBe(false);
   });
 });
+
+describe('Blog Categories / Recent & Related Blogs settings validation', () => {
+  function layoutWith(componentKey: string, settings: Record<string, unknown>): CustomTemplateLayoutConfigV1 {
+    return {
+      schemaVersion: 1,
+      layoutId: 'two-col',
+      metadata: { name: 'Two Col', description: 'Test.' },
+      page: { contentWidth: 'full', background: 'white', spacing: 'normal', typography: 'editorial' },
+      sections: [{
+        id: 'sec', layout: 'content_sidebar', responsiveStrategy: 'sidebar_below_on_tablet', enabled: true,
+        slots: [
+          { id: 'main', name: 'Main', components: [] },
+          { id: 'side', name: 'Sidebar', components: [asComponent({ id: 'w', componentKey, enabled: true, settings })] }
+        ]
+      }]
+    };
+  }
+
+  it('accepts valid settings for both widgets in the sidebar slot', () => {
+    expect(validateFrontendCustomTemplateLayout(layoutWith('blog_categories', { heading: 'Categories', maxItems: 8, showCount: true })).valid).toBe(true);
+    expect(validateFrontendCustomTemplateLayout(layoutWith('recent_related_blogs', { heading: '', mode: 'tabs', maxItems: 4, showImage: true, showDate: true })).valid).toBe(true);
+  });
+
+  it('rejects out-of-range limits, unknown modes and unknown keys', () => {
+    expect(validateFrontendCustomTemplateLayout(layoutWith('blog_categories', { heading: 'C', maxItems: 21, showCount: true })).valid).toBe(false);
+    expect(validateFrontendCustomTemplateLayout(layoutWith('recent_related_blogs', { heading: '', mode: 'popular', maxItems: 4, showImage: true, showDate: true })).valid).toBe(false);
+    expect(validateFrontendCustomTemplateLayout(layoutWith('recent_related_blogs', { heading: '', mode: 'tabs', maxItems: 11, showImage: true, showDate: true })).valid).toBe(false);
+    expect(validateFrontendCustomTemplateLayout(layoutWith('blog_categories', { heading: 'C', maxItems: 8, showCount: true, color: 'red' })).valid).toBe(false);
+  });
+});

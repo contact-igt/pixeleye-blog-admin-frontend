@@ -10,6 +10,7 @@ import type {
 import type { FrontendValidationError } from '../custom-template-validation';
 import { generateId, createDefaultSlots, createDefaultSettings, resolveDuplicateBlockId } from './builder-id-utils';
 import { getComponentDefinition } from '../component-registry';
+import { countActiveHeroes, HERO_LIMIT_MESSAGE } from '../hero-limit';
 
 const HISTORY_LIMIT = 50;
 
@@ -151,6 +152,9 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       }
       const sectionToDuplicate = state.layout.sections.find((s) => s.id === action.sectionId);
       if (!sectionToDuplicate) return state;
+      if (countActiveHeroes([sectionToDuplicate]) >= 1 && countActiveHeroes(state.layout.sections) >= 1) {
+        return { ...state, validationMessage: HERO_LIMIT_MESSAGE };
+      }
 
       const historyUpdate = pushToHistory(state);
       const existingIds = collectAllIds(state.layout);
@@ -427,6 +431,10 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
         };
       }
 
+      if (action.componentKey === 'hero' && countActiveHeroes(state.layout.sections) >= 1) {
+        return { ...state, validationMessage: HERO_LIMIT_MESSAGE };
+      }
+
       const historyUpdate = pushToHistory(state);
       const existingIds = collectAllIds(state.layout);
       const newComponentId = generateId('comp', existingIds);
@@ -513,6 +521,10 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       const slot = section?.slots.find((sl) => sl.id === action.slotId);
       const component = slot?.components.find((c) => c.id === action.componentId);
       if (!slot || !component) return state;
+
+      if (component.componentKey === 'hero' && countActiveHeroes(state.layout.sections) >= 1) {
+        return { ...state, validationMessage: HERO_LIMIT_MESSAGE };
+      }
 
       if (slot.components.length >= 10) {
         return { ...state, validationMessage: 'Cannot duplicate. Target slot component limit (10) reached.' };
@@ -690,6 +702,15 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
       };
 
     case 'update_component': {
+      if (action.updates.enabled === true) {
+        const target = state.layout.sections
+          .find((s) => s.id === action.sectionId)
+          ?.slots.find((sl) => sl.id === action.slotId)
+          ?.components.find((c) => c.id === action.componentId);
+        if (target?.componentKey === 'hero' && target.enabled === false && countActiveHeroes(state.layout.sections) >= 1) {
+          return { ...state, validationMessage: HERO_LIMIT_MESSAGE };
+        }
+      }
       const historyUpdate = pushToHistory(state);
       const updatedSections = state.layout.sections.map((s) => {
         if (s.id !== action.sectionId) return s;

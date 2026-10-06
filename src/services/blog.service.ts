@@ -1,6 +1,6 @@
 import { apiRequest, type ApiRequestOptions } from './api-client';
 import type { ApiResponse } from '@/types/auth';
-import type { BlogDetail, BlogListParams, BlogListResponse, BlogPayload, BlogTemplate, PublishChecklist } from '@/types/blog';
+import type { BlogCategory, BlogDetail, BlogListParams, BlogListResponse, BlogPayload, BlogTemplate, PublishChecklist } from '@/types/blog';
 
 function query(params: BlogListParams = {}) {
   const search = new URLSearchParams();
@@ -11,6 +11,10 @@ function query(params: BlogListParams = {}) {
 
 export async function listBlogTemplates(options: ApiRequestOptions = {}): Promise<BlogTemplate[]> {
   const response = await apiRequest<ApiResponse<BlogTemplate[]>>('/blogs/templates', { method: 'GET', ...options });
+  return response.data;
+}
+export async function listBlogCategories(options: ApiRequestOptions = {}): Promise<BlogCategory[]> {
+  const response = await apiRequest<ApiResponse<BlogCategory[]>>('/blogs/categories', { method: 'GET', ...options });
   return response.data;
 }
 export async function createBlog(payload: BlogPayload, options: ApiRequestOptions = {}): Promise<BlogDetail> {

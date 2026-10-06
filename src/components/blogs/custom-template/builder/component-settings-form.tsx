@@ -219,7 +219,7 @@ export default function ComponentSettingsForm({
             <Select
               label="Accordions structure"
               options={[
-                { label: 'Accordion text list', value: 'accordion' },
+                { label: 'Q&A list (always open, numbered)', value: 'qa_list' },
                 { label: 'Accordion split illustration', value: 'image_accordion' }
               ]}
               value={s.layout}
@@ -412,6 +412,97 @@ export default function ComponentSettingsForm({
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 focus:outline-hidden transition-all"
               />
             </div>
+          </div>
+        );
+
+      case 'blog_categories':
+        return (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Section Heading</label>
+              <input
+                type="text"
+                maxLength={120}
+                value={s.heading ?? ''}
+                onChange={(e) => handleUpdate({ settings: { ...s, heading: e.target.value } })}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 focus:outline-hidden transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Maximum Categories (1-20)</label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={Number(s.maxItems ?? 8)}
+                onChange={(e) => handleUpdate({ settings: { ...s, maxItems: Math.min(20, Math.max(1, Number(e.target.value) || 1)) } })}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 focus:outline-hidden transition-all"
+              />
+            </div>
+            <Select
+              label="Show blog count per category"
+              options={[
+                { label: 'Hide counts', value: 'false' },
+                { label: 'Show counts', value: 'true' }
+              ]}
+              value={String(s.showCount)}
+              onChange={(e) => handleUpdate({ settings: { ...s, showCount: e.target.value === 'true' } })}
+            />
+          </div>
+        );
+
+      case 'recent_related_blogs':
+        return (
+          <div className="space-y-3">
+            <Select
+              label="Blogs to display"
+              options={[
+                { label: 'Related / Recent tabs (related picked per blog)', value: 'tabs' },
+                { label: 'Recent blogs only', value: 'recent' },
+                { label: 'Related blogs only (picked per blog)', value: 'related' }
+              ]}
+              value={s.mode}
+              onChange={(e) => handleUpdate({ settings: { ...s, mode: e.target.value } })}
+            />
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Section Heading (optional)</label>
+              <input
+                type="text"
+                maxLength={120}
+                value={s.heading ?? ''}
+                onChange={(e) => handleUpdate({ settings: { ...s, heading: e.target.value } })}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 focus:outline-hidden transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Maximum Blogs (1-10)</label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={Number(s.maxItems ?? 4)}
+                onChange={(e) => handleUpdate({ settings: { ...s, maxItems: Math.min(10, Math.max(1, Number(e.target.value) || 1)) } })}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500/20 focus:outline-hidden transition-all"
+              />
+            </div>
+            <Select
+              label="Thumbnail image"
+              options={[
+                { label: 'Show image', value: 'true' },
+                { label: 'Hide image', value: 'false' }
+              ]}
+              value={String(s.showImage)}
+              onChange={(e) => handleUpdate({ settings: { ...s, showImage: e.target.value === 'true' } })}
+            />
+            <Select
+              label="Published date"
+              options={[
+                { label: 'Show date', value: 'true' },
+                { label: 'Hide date', value: 'false' }
+              ]}
+              value={String(s.showDate)}
+              onChange={(e) => handleUpdate({ settings: { ...s, showDate: e.target.value === 'true' } })}
+            />
           </div>
         );
 
