@@ -101,6 +101,7 @@ export default function BlogsPage() {
 
   // Debounced search
   useEffect(() => {
+    if (searchText.trim() === (searchParams.get('search') ?? '')) return;
     const timer = setTimeout(() => {
       const next = new URLSearchParams(searchParams.toString());
       if (searchText.trim()) next.set('search', searchText.trim());
