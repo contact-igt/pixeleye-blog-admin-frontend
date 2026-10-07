@@ -44,6 +44,16 @@ describe('BlogsPage', () => {
     expect(replaceMock).toHaveBeenLastCalledWith('/blogs?page=1');
   });
 
+  it('does not reset pagination when the URL changes without a search change', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ success: true, data: { items: [blog], pagination: { page: 2, limit: 20, total_items: 30, total_pages: 2, has_next_page: false, has_previous_page: true } } })));
+    query = 'page=2';
+    render(<BlogsPage />);
+
+    await screen.findByText(/Page 2 of 2/);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
   it('moves a blog to trash only after confirmation', async () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn().mockResolvedValueOnce(listResponse([blog])).mockResolvedValueOnce(jsonResponse({ success: true, data: { ...blog, status: 'trashed' } })).mockResolvedValueOnce(listResponse([]));
